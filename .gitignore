@@ -1,0 +1,12 @@
+
+# editor configurations
+.vscode/
+
+# build directories
+build/
+out/
+
+# temp build configs and managed dependencies
+sdkconfig
+managed_components/
+dependencies.lock
