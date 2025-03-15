@@ -6,3 +6,6 @@
 	path = components/embed-ros
 	url = git@github.com:VIIT-Robotics-Club/embed-ros.git
 	branch = feature/parameterServer
+[submodule "components/qmd"]
+	path = components/qmd
+	url = https://github.com/shvass/qmd.git
