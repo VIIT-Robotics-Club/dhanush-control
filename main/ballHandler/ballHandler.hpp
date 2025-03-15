@@ -22,7 +22,7 @@ struct ball_handler_config_t{
 };
 
 
-struct ball_handler_state {
+struct ball_handler_state_t {
     float arm_state = 0.0f, flyWheelSpeed = 0.0f;
     
 };
@@ -52,11 +52,11 @@ private:
 
 public:
     ball_handler_config_t cfg;
-
-
-public:
     TaskHandle_t taskHandle;
+    ball_handler_state_t target_state;
+    ball_handler_state_t current_state;
 
+// private:
 };
 
 #endif // BALL_HANDLER_HPP
