@@ -3,14 +3,20 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-
+#include "driver/gpio.h"
 #include <esp_log.h>
-#define TAG "ball handler"
+
+#define TAG "ball_handler"
 
 #define BALL_HANDLER_TASK_NAME "ballHandlerTask"
 #define BALL_HANDLER_TASK_STACK 4096
 #define BALL_HANDLER_TASK_PRIORITY 10
 
+const char * flyWheel_topic_name = "/flyWheel_speed", *arm_topic_name = "/arm_speed";
+
+const rosidl_message_type_support_t * float32_type_support = ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32);
+
+ballHandler* ballHandler::def = 0;
 
 void arm_limiter_isr(void * arg){
     ballHandler* handler = (ballHandler*) arg;
@@ -23,8 +29,8 @@ void arm_limiter_isr(void * arg){
 
 ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 
-
-//starts ball handler thread
+    def = this;
+ //starts ball handler thread
     xTaskCreate((TaskFunction_t) &ballHandler::ballHandlerTask, BALL_HANDLER_TASK_NAME, BALL_HANDLER_TASK_STACK, 
         this, BALL_HANDLER_TASK_PRIORITY, &taskHandle);
 
@@ -54,7 +60,15 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 
 
 void ballHandler::init(){
+    std_msgs__msg__Float32__init(&flyWheel_msg);
+    std_msgs__msg__Float32__init(&arm_msg);
 
+
+    rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name);
+    rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name);
+    
+    rclc_executor_add_subscription(exec, &flyWheel_sub, &flyWheel_msg, flyWheel_subs_callback, ON_NEW_DATA);
+    rclc_executor_add_subscription(exec, &arm_sub, &arm_msg, arm_subs_callback, ON_NEW_DATA);
 };
 
 void ballHandler::declareParameters(){
@@ -77,3 +91,18 @@ void ballHandler::ballHandlerTask(){
     
     vTaskDelete(NULL);
 };
+
+void ballHandler::flyWheel_subs_callback(const void * msgin)
+{
+  const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
+  if(def) def->current_state.flyWheelSpeed = msg->data;
+
+}
+
+void ballHandler::arm_subs_callback(const void* msgin){
+    
+    const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
+    if(def) def->current_state.arm_state = msg->data;
+
+  
+}

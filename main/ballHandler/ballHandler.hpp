@@ -10,6 +10,8 @@
 
 #include <urosElement.hpp>
 
+#include "std_msgs/msg/float32.h"
+
 
 /**
  * configuration to initialize a ballHandler
@@ -47,16 +49,24 @@ public:
 
     
 private:
+        // subscription callback
+    static void flyWheel_subs_callback(const void * msgin);
+    static void arm_subs_callback(const void * msgin);
 
     void ballHandlerTask();
-
+    
 public:
     ball_handler_config_t cfg;
+    rcl_subscription_t flyWheel_sub, arm_sub;
+    static ballHandler* def;
+
     TaskHandle_t taskHandle;
     ball_handler_state_t target_state;
     ball_handler_state_t current_state;
 
-// private:
+private:
+    std_msgs__msg__Float32 flyWheel_msg , arm_msg;
+
 };
 
 #endif // BALL_HANDLER_HPP
