@@ -12,10 +12,16 @@
 #define BALL_HANDLER_TASK_STACK 4096
 #define BALL_HANDLER_TASK_PRIORITY 10
 
-const char * flyWheel_topic_name = "/flyWheel_speed", *arm_topic_name = "/arm_speed", *angle_topic_name = "/flywheel_angle";
+const char  *flyWheel_topic_name = "/flyWheel_speed", 
+            *arm_topic_name = "/arm_speed",
+            *finger_topic_name = "/finger",
+            *angle_topic_name = "/flywheel_angle";
+
 const char * service_name = "launch_ball";
 
+
 const rosidl_message_type_support_t * float32_type_support = ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32);
+const rosidl_message_type_support_t * bool_type_support = ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool);
 
 
 ballHandler* ballHandler::def = 0;
@@ -37,7 +43,7 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
         this, BALL_HANDLER_TASK_PRIORITY, &taskHandle);
 
 //maps ISR to arm limiter
-    gpio_config_t gpio_cfg = {
+    gpio_config_t limiter_cfg = {
         .pin_bit_mask = (uint64_t)((0x01 << cfg.armLimiterL) | (0x01 << cfg.armLimiterU)),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
@@ -45,7 +51,15 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
         .intr_type = GPIO_INTR_NEGEDGE
     };
 
-    gpio_config(&gpio_cfg);
+    gpio_config_t finger_cfg = {
+        .pin_bit_mask = (uint64_t)(0x01 << cfg.finger),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_ENABLE,
+    };
+
+    gpio_config(&limiter_cfg);
+    gpio_config(&finger_cfg);
     gpio_install_isr_service( ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED);
 
 
@@ -76,6 +90,8 @@ void ballHandler::init(){
     std_msgs__msg__Float32__init(&flyWheel_msg);
     std_msgs__msg__Float32__init(&arm_msg);
     std_msgs__msg__Float32__init(&angle_msg);
+    std_msgs__msg__Bool__init(&finger_msg);
+
 
     dhanush_srv__srv__SpeedAngle_Request__init(&req);
     dhanush_srv__srv__SpeedAngle_Response__init(&res);
@@ -83,10 +99,13 @@ void ballHandler::init(){
 
     ESP_ERROR_CHECK(rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name));
     ESP_ERROR_CHECK(rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name));
+    rclc_subscription_init_default(&finger_sub, node, bool_type_support, finger_topic_name);
     ESP_ERROR_CHECK(rclc_subscription_init_default(&angle_sub, node, float32_type_support, angle_topic_name));
+
     
     rclc_executor_add_subscription(exec, &flyWheel_sub, &flyWheel_msg, flyWheel_subs_callback, ON_NEW_DATA);
     rclc_executor_add_subscription(exec, &arm_sub, &arm_msg, arm_subs_callback, ON_NEW_DATA);
+    rclc_executor_add_subscription(exec, &finger_sub, &finger_msg, finger_subs_callback, ON_NEW_DATA);
     ESP_ERROR_CHECK(rclc_executor_add_subscription(exec, &angle_sub, &angle_msg,angle_subs_callback, ON_NEW_DATA));
 
     // create launch service to trigger ball launch sequence  
@@ -118,9 +137,10 @@ void ballHandler::ballHandlerTask(){
 
 void ballHandler::flyWheel_subs_callback(const void * msgin)
 {
-  const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
-  if(def) def->current_state.flyWheelSpeed = msg->data;
+    const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
+    if(def) def->current_state.flyWheelSpeed = msg->data;
 
+    ESP_LOGD(TAG, "flyWheel state : %f", msg->data);
 }
 
 void ballHandler::arm_subs_callback(const void* msgin){
@@ -147,3 +167,12 @@ void ballHandler::service_callback(const void * req, void *res)
     res_in->success = true;
 }
 
+
+void ballHandler::finger_subs_callback(const void* msgin){
+    
+    const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
+    if(def) def->current_state.finger_state = msg->data;
+
+    gpio_set_level(def->cfg.finger, msg->data);
+    ESP_LOGD(TAG, "finger state: %d", msg->data);
+}

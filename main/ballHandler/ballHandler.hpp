@@ -14,6 +14,7 @@
 #include <rclc/rclc.h>
 #include <std_msgs/msg/float32.h>
 #include <dhanush_srv/srv/speed_angle.h>
+#include <std_msgs/msg/bool.h>
 
 
 
@@ -30,12 +31,13 @@ struct ball_handler_config_t{
         flyWheelAngleLeft = INDEX_FLYW_ANGLE_L,
         flyWheelAngleRight = INDEX_FLYW_ANGLE_R;
 
-    gpio_num_t armLimiterL = ARM_LIMIT_L, armLimiterU = ARM_LIMIT_U;
+    gpio_num_t armLimiterL = ARM_LIMIT_L, armLimiterU = ARM_LIMIT_U, finger = FINGER_GPIO;
 };
 
 
 struct ball_handler_state_t {
     float arm_state = 0.0f, flyWheelSpeed = 0.0f, flywheel_angle = 0.0f;
+    bool finger_state = false;
     
 };
 
@@ -64,6 +66,7 @@ private:
     static void arm_subs_callback(const void * msgin);
     static void service_callback(const void * req, void *res);
     static void angle_subs_callback(const void* msgin);
+    static void finger_subs_callback(const void * msgin);
 
     void ballHandlerTask();
     
@@ -74,7 +77,7 @@ private:
 
 public:
     ball_handler_config_t cfg;
-    rcl_subscription_t flyWheel_sub, arm_sub, angle_sub;
+    rcl_subscription_t flyWheel_sub, arm_sub, angle_sub, finger_sub;
     static ballHandler* def;
 
     TaskHandle_t taskHandle;
@@ -83,6 +86,7 @@ public:
 
 private:
     std_msgs__msg__Float32 flyWheel_msg , arm_msg, angle_msg;
+    std_msgs__msg__Bool finger_msg;
 
     const rosidl_service_type_support_t  * support = ROSIDL_GET_SRV_TYPE_SUPPORT(dhanush_srv, srv, SpeedAngle);
 // private:
