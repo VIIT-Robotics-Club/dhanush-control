@@ -10,8 +10,10 @@
 
 #include <urosElement.hpp>
 
-#include "std_msgs/msg/float32.h"
-#include "dhanush_srv/srv/speed_angle.h"
+
+#include <rclc/rclc.h>
+#include <std_msgs/msg/float32.h>
+#include <dhanush_srv/srv/speed_angle.h>
 
 
 
@@ -83,7 +85,6 @@ private:
     std_msgs__msg__Float32 flyWheel_msg , arm_msg, angle_msg;
 
     const rosidl_service_type_support_t  * support = ROSIDL_GET_SRV_TYPE_SUPPORT(dhanush_srv, srv, SpeedAngle);
-    const char* service_name = "flywheel_SpeedAngle";
 // private:
 };
 

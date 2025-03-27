@@ -13,8 +13,10 @@
 #define BALL_HANDLER_TASK_PRIORITY 10
 
 const char * flyWheel_topic_name = "/flyWheel_speed", *arm_topic_name = "/arm_speed", *angle_topic_name = "/flywheel_angle";
+const char * service_name = "launch_ball";
 
 const rosidl_message_type_support_t * float32_type_support = ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32);
+
 
 ballHandler* ballHandler::def = 0;
 
@@ -75,6 +77,9 @@ void ballHandler::init(){
     std_msgs__msg__Float32__init(&arm_msg);
     std_msgs__msg__Float32__init(&angle_msg);
 
+    dhanush_srv__srv__SpeedAngle_Request__init(&req);
+    dhanush_srv__srv__SpeedAngle_Response__init(&res);
+
 
     ESP_ERROR_CHECK(rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name));
     ESP_ERROR_CHECK(rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name));
@@ -84,9 +89,9 @@ void ballHandler::init(){
     rclc_executor_add_subscription(exec, &arm_sub, &arm_msg, arm_subs_callback, ON_NEW_DATA);
     ESP_ERROR_CHECK(rclc_executor_add_subscription(exec, &angle_sub, &angle_msg,angle_subs_callback, ON_NEW_DATA));
 
-    // ESP_ERROR_CHECK(rclc_service_init_default(&service, node, support, service_name));
-    // ESP_ERROR_CHECK(rclc_executor_add_service(exec, &service, &req, &res, service_callback));
-    // printf("Hello World");
+    // create launch service to trigger ball launch sequence  
+    ESP_ERROR_CHECK(rclc_service_init_default(&service, node, support, service_name));
+    ESP_ERROR_CHECK(rclc_executor_add_service(exec, &service, &req, &res, service_callback));
 };
 
 void ballHandler::declareParameters(){
@@ -137,6 +142,8 @@ void ballHandler::service_callback(const void * req, void *res)
     dhanush_srv__srv__SpeedAngle_Request * req_in = (dhanush_srv__srv__SpeedAngle_Request*)req;
     dhanush_srv__srv__SpeedAngle_Response * res_in = (dhanush_srv__srv__SpeedAngle_Response*)res;
 
-    printf("Service request value: %f + %f.\n",req_in->angle,  req_in->speed);
+    ESP_LOGI(TAG, "%s service called with angle %lf speed %lf", service_name, req_in->angle, req_in->speed);    
+
+    res_in->success = true;
 }
 
