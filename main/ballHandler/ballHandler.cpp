@@ -12,7 +12,7 @@
 #define BALL_HANDLER_TASK_STACK 4096
 #define BALL_HANDLER_TASK_PRIORITY 10
 
-const char * flyWheel_topic_name = "/flyWheel_speed", *arm_topic_name = "/arm_speed";
+const char * flyWheel_topic_name = "/flyWheel_speed", *arm_topic_name = "/arm_speed", *angle_topic_name = "/flywheel_angle";
 
 const rosidl_message_type_support_t * float32_type_support = ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32);
 
@@ -45,6 +45,17 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 
     gpio_config(&gpio_cfg);
     gpio_install_isr_service( ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED);
+
+
+    
+    
+    // res.message.data = &resMsg;
+    // res.message.size = 1;
+    // res.message.capacity = 1;
+    
+    // dhanush_srv__srv__SpeedAngle_Request__init(&req);
+    // ESP_ERROR_CHECK(dhanush_srv__srv__SpeedAngle_Response__init(&res));
+
     gpio_isr_handler_add(cfg.armLimiterU, arm_limiter_isr,  this);
     gpio_isr_handler_add(cfg.armLimiterL, arm_limiter_isr, this);
 
@@ -58,17 +69,29 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 };
 
 
+float ballHandler::flywheelAngleMap(float angle){
+    float mapped_ang = (2500 - 500)*(angle) + 500;
+
+    return mapped_ang;
+}
 
 void ballHandler::init(){
     std_msgs__msg__Float32__init(&flyWheel_msg);
     std_msgs__msg__Float32__init(&arm_msg);
+    std_msgs__msg__Float32__init(&angle_msg);
 
 
-    rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name);
-    rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name);
+    ESP_ERROR_CHECK(rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name));
+    ESP_ERROR_CHECK(rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name));
+    ESP_ERROR_CHECK(rclc_subscription_init_default(&angle_sub, node, float32_type_support, angle_topic_name));
     
     rclc_executor_add_subscription(exec, &flyWheel_sub, &flyWheel_msg, flyWheel_subs_callback, ON_NEW_DATA);
     rclc_executor_add_subscription(exec, &arm_sub, &arm_msg, arm_subs_callback, ON_NEW_DATA);
+    ESP_ERROR_CHECK(rclc_executor_add_subscription(exec, &angle_sub, &angle_msg,angle_subs_callback, ON_NEW_DATA));
+
+    // ESP_ERROR_CHECK(rclc_service_init_default(&service, node, support, service_name));
+    // ESP_ERROR_CHECK(rclc_executor_add_service(exec, &service, &req, &res, service_callback));
+    // printf("Hello World");
 };
 
 void ballHandler::declareParameters(){
@@ -85,6 +108,8 @@ void ballHandler::ballHandlerTask(){
         // update motor speeds
         cfg.qmd_handler->speeds[cfg.flyWheelLower] = cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed;
         cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
+        cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = current_state.flywheel_angle;
+        cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = (2500 - current_state.flywheel_angle);
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -104,5 +129,22 @@ void ballHandler::arm_subs_callback(const void* msgin){
     const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
     if(def) def->current_state.arm_state = msg->data;
 
-  
 }
+
+void ballHandler::angle_subs_callback(const void* msgin){
+    const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32*)msgin;
+
+    float mapped = def->flywheelAngleMap(msg->data);
+
+    // memcpy(msg->data, &mapped, sizeof(float));
+    if(def) def->current_state.flywheel_angle = msg->data;
+}
+
+void ballHandler::service_callback(const void * req, void *res)
+{
+    dhanush_srv__srv__SpeedAngle_Request * req_in = (dhanush_srv__srv__SpeedAngle_Request*)req;
+    dhanush_srv__srv__SpeedAngle_Response * res_in = (dhanush_srv__srv__SpeedAngle_Response*)res;
+
+    printf("Service request value: %f + %f.\n",req_in->angle,  req_in->speed);
+}
+
