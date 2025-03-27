@@ -69,11 +69,6 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 };
 
 
-float ballHandler::flywheelAngleMap(float angle){
-    float mapped_ang = (2500 - 500)*(angle) + 500;
-
-    return mapped_ang;
-}
 
 void ballHandler::init(){
     std_msgs__msg__Float32__init(&flyWheel_msg);
@@ -107,9 +102,8 @@ void ballHandler::ballHandlerTask(){
 
         // update motor speeds
         cfg.qmd_handler->speeds[cfg.flyWheelLower] = cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed;
+        cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
         cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
-        cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = current_state.flywheel_angle;
-        cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = (2500 - current_state.flywheel_angle);
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -134,10 +128,8 @@ void ballHandler::arm_subs_callback(const void* msgin){
 void ballHandler::angle_subs_callback(const void* msgin){
     const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32*)msgin;
 
-    float mapped = def->flywheelAngleMap(msg->data);
-
     // memcpy(msg->data, &mapped, sizeof(float));
-    if(def) def->current_state.flywheel_angle = msg->data;
+    if(def && msg->data <= 1.0f && msg->data >= 0.0f) def->current_state.flywheel_angle = msg->data;
 }
 
 void ballHandler::service_callback(const void * req, void *res)

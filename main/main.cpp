@@ -18,6 +18,8 @@ extern "C" void app_main(void)
     // initialize quad motoer
     handler = new qmd(pwmPins,dirPins,5);
     handler->setRange(19990, 0);
+    handler->setRange(2500, 500, 3);
+    handler->setRange(500, 2500, 4);
 
     urosHandler::config cfg = {
         .mode = urosHandler::config::TRANSPORT_USB

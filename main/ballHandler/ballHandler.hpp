@@ -21,7 +21,13 @@
  */
 struct ball_handler_config_t{
     qmd* qmd_handler = 0;
-    int flyWheelLower = INDEX_FLYW_L, flyWheelUpper = INDEX_FLYW_U, arm = INDEX_ARM, flyWheelAngleLeft = INDEX_FLYW_ANGLE_L,  flyWheelAngleRight = INDEX_FLYW_ANGLE_R;
+
+    int flyWheelLower = INDEX_FLYW_L, 
+        flyWheelUpper = INDEX_FLYW_U, 
+        arm = INDEX_ARM, 
+        flyWheelAngleLeft = INDEX_FLYW_ANGLE_L,
+        flyWheelAngleRight = INDEX_FLYW_ANGLE_R;
+
     gpio_num_t armLimiterL = ARM_LIMIT_L, armLimiterU = ARM_LIMIT_U;
 };
 
@@ -45,13 +51,8 @@ public:
     
 
     void declareParameters();
+
     void init();
-    float flywheelAngleMap(float angle);
-
-
-    
-    
-    
     
     private:
     
