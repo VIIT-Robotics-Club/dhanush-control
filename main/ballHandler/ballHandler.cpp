@@ -17,7 +17,8 @@ const char  *flyWheel_topic_name = "/flyWheel_speed",
             *finger_topic_name = "/finger",
             *angle_topic_name = "/flywheel_angle";
 
-const char * service_name = "launch_ball";
+const char * service_name = "launch_ball",
+           * arm_receiving_service = "receive_ball";
 
 
 const rosidl_message_type_support_t * float32_type_support = ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32);
@@ -30,6 +31,10 @@ void arm_limiter_isr(void * arg){
     ballHandler* handler = (ballHandler*) arg;
 
     handler->current_state.arm_state = 0.0f;
+    if(handler->current_state.arm_decoder_state == false){
+        handler->cfg.dec->count[handler->cfg.arm] = 0.0f;
+        handler->current_state.arm_decoder_state = true;
+    }
     vTaskNotifyGiveFromISR(handler->taskHandle, NULL);
 };
 
@@ -96,6 +101,8 @@ void ballHandler::init(){
     dhanush_srv__srv__SpeedAngle_Request__init(&req);
     dhanush_srv__srv__SpeedAngle_Response__init(&res);
 
+    std_srvs__srv__SetBool_Request__init(&arm_req);
+    std_srvs__srv__SetBool_Response__init(&arm_res);
 
     ESP_ERROR_CHECK(rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name));
     ESP_ERROR_CHECK(rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name));
@@ -111,6 +118,9 @@ void ballHandler::init(){
     // create launch service to trigger ball launch sequence  
     ESP_ERROR_CHECK(rclc_service_init_default(&service, node, support, service_name));
     ESP_ERROR_CHECK(rclc_executor_add_service(exec, &service, &req, &res, service_callback));
+
+    rclc_service_init_default(&service, node, arm_support, arm_receiving_service);
+    rclc_executor_add_service(exec, &service, &arm_req, &arm_res, arm_receiving_serv_callback);
 };
 
 void ballHandler::declareParameters(){
@@ -128,6 +138,7 @@ void ballHandler::ballHandlerTask(){
         cfg.qmd_handler->speeds[cfg.flyWheelLower] = cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed;
         cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
         cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
+        cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_decoder_state;
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -175,4 +186,35 @@ void ballHandler::finger_subs_callback(const void* msgin){
 
     gpio_set_level(def->cfg.finger, msg->data);
     ESP_LOGD(TAG, "finger state: %d", msg->data);
+}
+
+
+void ballHandler::arm_receiving_serv_callback(const void* req, void *res){
+     
+    std_srvs__srv__SetBool_Request * req_in = (std_srvs__srv__SetBool_Request*)req;
+    std_srvs__srv__SetBool_Response * res_out = (std_srvs__srv__SetBool_Response*)res;
+ 
+    
+    if(req_in->data == true){
+        if(def->current_state.arm_decoder_state == true){
+            // move the arm to the desired position 
+            if(def->cfg.dec->count[0]<= 50.0){
+                // ESP_LOGD("encoder: %f"), def->cfg.dec->count[0];
+                def->current_state.arm_state = 0.3;
+            }else{
+                def->current_state.arm_state = 0.0f;
+            }
+
+        }else if(def->current_state.arm_decoder_state == false){
+            // call the same isr code to move the arm out  
+            def->current_state.arm_state = -0.3;
+            
+        }
+        //first check if the state of the arm is true which means encoder values are configured
+        //if yes
+            //i.e./ we have to move the arm to the desigered position here.
+        //if no
+            //congigure the encoders first 
+            //then move the arm 
+    }
 }
