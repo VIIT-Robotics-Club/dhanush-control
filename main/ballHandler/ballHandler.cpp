@@ -6,6 +6,8 @@
 #include "driver/gpio.h"
 #include <esp_log.h>
 
+#include <urosHandler.hpp>
+
 #define TAG "ball_handler"
 
 #define BALL_HANDLER_TASK_NAME "ballHandlerTask"
@@ -29,18 +31,32 @@ ballHandler* ballHandler::def = 0;
 void arm_limiter_isr(void * arg){
     ballHandler* handler = (ballHandler*) arg;
 
+    // TODO change to update qmd directly, status flag
     handler->current_state.arm_state = 0.0f;
-    vTaskNotifyGiveFromISR(handler->taskHandle, NULL);
+    vTaskNotifyGiveFromISR(handler->hwTaskHandle, NULL);
 };
 
 
 
 ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 
+    // worker threads setup 
+    threadContext_t ctx = {
+        .cfg = &cfg,
+        .current = &current_state
+    };
+
+    dbgWorker.setContext(ctx);
+    dbgWorker.start();
+
+
+
+
     def = this;
  //starts ball handler thread
-    xTaskCreate((TaskFunction_t) &ballHandler::ballHandlerTask, BALL_HANDLER_TASK_NAME, BALL_HANDLER_TASK_STACK, 
-        this, BALL_HANDLER_TASK_PRIORITY, &taskHandle);
+    xTaskCreate((TaskFunction_t) &ballHandler::hw_task_callback, BALL_HANDLER_TASK_NAME, BALL_HANDLER_TASK_STACK, 
+        this, BALL_HANDLER_TASK_PRIORITY, &hwTaskHandle);
+
 
 //maps ISR to arm limiter
     gpio_config_t limiter_cfg = {
@@ -62,40 +78,24 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
     gpio_config(&finger_cfg);
     gpio_install_isr_service( ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED);
 
-
-    
-    
-    // res.message.data = &resMsg;
-    // res.message.size = 1;
-    // res.message.capacity = 1;
-    
-    // dhanush_srv__srv__SpeedAngle_Request__init(&req);
-    // ESP_ERROR_CHECK(dhanush_srv__srv__SpeedAngle_Response__init(&res));
-
     gpio_isr_handler_add(cfg.armLimiterU, arm_limiter_isr,  this);
     gpio_isr_handler_add(cfg.armLimiterL, arm_limiter_isr, this);
-
+    
     // Enable the interrupts
     gpio_intr_enable(cfg.armLimiterU);
     gpio_intr_enable(cfg.armLimiterL);
 
-// initializes internal data
 
 
 };
 
 
 
-void ballHandler::init(){
+void ballHandler::declareDebugRclInterfaces(){
     std_msgs__msg__Float32__init(&flyWheel_msg);
     std_msgs__msg__Float32__init(&arm_msg);
     std_msgs__msg__Float32__init(&angle_msg);
     std_msgs__msg__Bool__init(&finger_msg);
-
-
-    dhanush_srv__srv__SpeedAngle_Request__init(&req);
-    dhanush_srv__srv__SpeedAngle_Response__init(&res);
-
 
     ESP_ERROR_CHECK(rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name));
     ESP_ERROR_CHECK(rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name));
@@ -107,24 +107,45 @@ void ballHandler::init(){
     rclc_executor_add_subscription(exec, &arm_sub, &arm_msg, arm_subs_callback, ON_NEW_DATA);
     rclc_executor_add_subscription(exec, &finger_sub, &finger_msg, finger_subs_callback, ON_NEW_DATA);
     ESP_ERROR_CHECK(rclc_executor_add_subscription(exec, &angle_sub, &angle_msg,angle_subs_callback, ON_NEW_DATA));
+};
+
+void ballHandler::init(){
+    if(params.debug) declareDebugRclInterfaces();
+
+    dhanush_srv__srv__SpeedAngle_Request__init(&req);
+    dhanush_srv__srv__SpeedAngle_Response__init(&res);
 
     // create launch service to trigger ball launch sequence  
     ESP_ERROR_CHECK(rclc_service_init_default(&service, node, support, service_name));
     ESP_ERROR_CHECK(rclc_executor_add_service(exec, &service, &req, &res, service_callback));
 };
 
-void ballHandler::declareParameters(){
 
+void ballHandler::declareParameters(){
+    urosHandler::addParameter_bool("ballHandler_debug", &params.debug, &params);
 };
 
 
-void ballHandler::ballHandlerTask(){
+
+void ballHandler::hw_task_callback(){
 
     while (1){
+        // get gpio levels
+        current_state.armLimiterState[0] = gpio_get_level(cfg.armLimiterL);
+        current_state.armLimiterState[1] = gpio_get_level(cfg.armLimiterU);
 
-        // check for service calls
+        // update gpio levels
+        gpio_set_level(cfg.finger, current_state.finger_state);
 
-        // update motor speeds
+        // calculate speeds from encoder ticks
+        cfg.decoder_handle->update();
+        current_state.feedbackFlyWheelSpeed_L = cfg.decoder_handle->count[cfg.flyWheelLower] - current_state.encoderFeedBack[cfg.flyWheelLower];
+        current_state.feedbackFlyWheelSpeed_U = cfg.decoder_handle->count[cfg.flyWheelUpper] - current_state.encoderFeedBack[cfg.flyWheelUpper];
+
+        // copy current encoder state
+        memcpy(&current_state.encoderFeedBack, cfg.decoder_handle->count, DECODER_MAX_WHEEL_COUNT * sizeof(float));
+        
+        //  speed 
         cfg.qmd_handler->speeds[cfg.flyWheelLower] = cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed;
         cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
         cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
@@ -173,6 +194,28 @@ void ballHandler::finger_subs_callback(const void* msgin){
     const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
     if(def) def->current_state.finger_state = msg->data;
 
-    gpio_set_level(def->cfg.finger, msg->data);
     ESP_LOGD(TAG, "finger state: %d", msg->data);
 }
+
+
+
+// Dubug worker accesses all the indexes of qmd
+void debugWorker::run(){
+
+    while (true){
+        queryRunningState();
+
+        // handle all the inputs from debug topic
+        ctx.current->flyWheelSpeed  = (1.0 - alpha) * ctx.current->flyWheelSpeed + (alpha)  * ctx.target.flyWheelSpeed;
+        ctx.current->finger_state = ctx.target.finger_state;
+        ctx.current->flywheel_angle = ctx.target.flywheel_angle;
+
+
+        // TODO: PID implementation of arm state
+        // ctx.current->arm_state
+
+        ESP_LOGI("debugWorker", "working");
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
+};
