@@ -30,30 +30,24 @@ ballHandler* ballHandler::def = 0;
 
 void arm_limiter_isr(void * arg){
     ballHandler* handler = (ballHandler*) arg;
+    qmd& qmdHandler = *handler->cfg.qmd_handler;
 
     // TODO change to update qmd directly, status flag
-    handler->current_state.arm_state = 0.0f;
-    vTaskNotifyGiveFromISR(handler->hwTaskHandle, NULL);
+    // handler->current_state.arm_state = 0.0f;
+    qmdHandler.speeds[handler->cfg.arm]  = 0.0f;
+    qmdHandler.update();
+    // handler->cfg.qmd_handler[handler->cfg.arm] = 0.0f;
+    
+    // vTaskNotifyGiveFromISR(handler->hwTaskHandle, NULL);
 };
 
 
 
 ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 
-    // worker threads setup 
-    threadContext_t ctx = {
-        .cfg = &cfg,
-        .current = &current_state
-    };
-
-    dbgWorker.setContext(ctx);
-    dbgWorker.start();
-
-
-
 
     def = this;
- //starts ball handler thread
+    //starts ball handler thread
     xTaskCreate((TaskFunction_t) &ballHandler::hw_task_callback, BALL_HANDLER_TASK_NAME, BALL_HANDLER_TASK_STACK, 
         this, BALL_HANDLER_TASK_PRIORITY, &hwTaskHandle);
 
@@ -84,9 +78,6 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
     // Enable the interrupts
     gpio_intr_enable(cfg.armLimiterU);
     gpio_intr_enable(cfg.armLimiterL);
-
-
-
 };
 
 
@@ -111,6 +102,19 @@ void ballHandler::declareDebugRclInterfaces(){
 
 void ballHandler::init(){
     if(params.debug) declareDebugRclInterfaces();
+
+    // start worker threads
+    threadContext_t ctx = {
+        .cfg = &cfg,
+        .current = &current_state
+    };
+
+    dbgWorker.setContext(ctx);
+    dbgWorker.start();
+    lnchWorker.setContext(ctx);
+    lnchWorker.block();
+    lnchWorker.start();
+
 
     dhanush_srv__srv__SpeedAngle_Request__init(&req);
     dhanush_srv__srv__SpeedAngle_Response__init(&res);
@@ -148,7 +152,12 @@ void ballHandler::hw_task_callback(){
         //  speed 
         cfg.qmd_handler->speeds[cfg.flyWheelLower] = cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed;
         cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
-        cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
+        
+        // if limit switch is triggered, do not move toward that direction 
+        if(current_state.armLimiterState[0] && current_state.arm_state > 0.0f) cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
+        else if (current_state.armLimiterState[1] && current_state.arm_state < 0.0f) cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
+        else cfg.qmd_handler->speeds[cfg.arm] = 0.0f;
+
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -159,7 +168,11 @@ void ballHandler::hw_task_callback(){
 void ballHandler::flyWheel_subs_callback(const void * msgin)
 {
     const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
-    if(def) def->current_state.flyWheelSpeed = msg->data;
+    // if(def) def->current_state.flyWheelSpeed = msg->data;
+
+    ball_handler_state_t& state = def->dbgWorker.ctx.target;
+    state.flyWheelSpeed = msg->data;
+    def->eventInput(DEBUG_EVENT);
 
     ESP_LOGD(TAG, "flyWheel state : %f", msg->data);
 }
@@ -167,7 +180,9 @@ void ballHandler::flyWheel_subs_callback(const void * msgin)
 void ballHandler::arm_subs_callback(const void* msgin){
     
     const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
-    if(def) def->current_state.arm_state = msg->data;
+    ball_handler_state_t& state = def->dbgWorker.ctx.target;
+    state.flyWheelSpeed = msg->data;
+    def->eventInput(DEBUG_EVENT);
 
 }
 
@@ -175,16 +190,26 @@ void ballHandler::angle_subs_callback(const void* msgin){
     const std_msgs__msg__Float32 *msg = (const std_msgs__msg__Float32*)msgin;
 
     // memcpy(msg->data, &mapped, sizeof(float));
-    if(def && msg->data <= 1.0f && msg->data >= 0.0f) def->current_state.flywheel_angle = msg->data;
+    if(def && msg->data <= 1.0f && msg->data >= 0.0f) {
+        ball_handler_state_t& state = def->dbgWorker.ctx.target;
+        state.flyWheelSpeed = msg->data;
+        def->eventInput(DEBUG_EVENT);
+    };
 }
 
 void ballHandler::service_callback(const void * req, void *res)
 {
-    dhanush_srv__srv__SpeedAngle_Request * req_in = (dhanush_srv__srv__SpeedAngle_Request*)req;
-    dhanush_srv__srv__SpeedAngle_Response * res_in = (dhanush_srv__srv__SpeedAngle_Response*)res;
+    dhanush_srv__srv__SpeedAngle_Request * req_in = (dhanush_srv__srv__SpeedAngle_Request*)   req;
+    dhanush_srv__srv__SpeedAngle_Response * res_in = (dhanush_srv__srv__SpeedAngle_Response*) res;
 
     ESP_LOGI(TAG, "%s service called with angle %lf speed %lf", service_name, req_in->angle, req_in->speed);    
 
+
+    ball_handler_state_t& state = def->lnchWorker.ctx.target;
+    state.flywheel_angle = req_in->angle;
+    state.flyWheelSpeed = req_in->speed;
+
+    def->eventInput(THROW_SERVICE);
     res_in->success = true;
 }
 
@@ -192,8 +217,11 @@ void ballHandler::service_callback(const void * req, void *res)
 void ballHandler::finger_subs_callback(const void* msgin){
     
     const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
-    if(def) def->current_state.finger_state = msg->data;
 
+    ball_handler_state_t& state = def->dbgWorker.ctx.target;
+    state.finger_state = msg->data;
+
+    def->eventInput(DEBUG_EVENT);
     ESP_LOGD(TAG, "finger state: %d", msg->data);
 }
 
@@ -209,13 +237,48 @@ void debugWorker::run(){
         ctx.current->flyWheelSpeed  = (1.0 - alpha) * ctx.current->flyWheelSpeed + (alpha)  * ctx.target.flyWheelSpeed;
         ctx.current->finger_state = ctx.target.finger_state;
         ctx.current->flywheel_angle = ctx.target.flywheel_angle;
-
-
+        
         // TODO: PID implementation of arm state
         // ctx.current->arm_state
+        ctx.current->arm_state = ctx.target.arm_state;
 
         ESP_LOGI("debugWorker", "working");
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
+};
+
+// Dubug worker accesses all the indexes of qmd
+void launchWorker::run(){
+
+    while (true){
+        queryRunningState();
+        // TODO: PID implementation of arm state
+        // ctx.current->arm_state
+
+        ESP_LOGI("launchWorker", "working");
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
+};
+
+
+void ballHandler::eventInput(eventType type){
+
+    switch (type)
+    {
+    case THROW_SERVICE:
+        dbgWorker.block();
+
+        lnchWorker.unblock();
+        break;
+    
+
+    case DEBUG_EVENT:
+        lnchWorker.block();
+        
+        dbgWorker.unblock();
+    default:
+        break;
+    }
 };

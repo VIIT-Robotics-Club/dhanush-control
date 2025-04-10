@@ -67,6 +67,17 @@ public:
     float alpha = 0.1f;
 };
 
+
+class launchWorker : public workerThread {
+public:
+    
+    inline void setContext(threadContext_t& p_ctx) { ctx = p_ctx;};
+    void run();
+    threadContext_t ctx;
+
+    float alpha = 0.1f;
+};
+
 class ballHandler : public urosElement {
 
 public:
@@ -130,6 +141,14 @@ private:
 private:
     // worker threads for multiple tasks
     debugWorker dbgWorker;
+    launchWorker lnchWorker;
+
+    enum eventType {
+        THROW_SERVICE = 0,
+        DEBUG_EVENT = 1,
+    };
+
+    void eventInput(eventType type);
 };
 
 #endif // BALL_HANDLER_HPP
