@@ -206,6 +206,7 @@ void ballHandler::service_callback(const void * req, void *res)
 
 
     ball_handler_state_t& state = def->lnchWorker.ctx.target;
+    state.launchState = ball_handler_state_t::LAUNCH_BEGIN;
     state.flywheel_angle = req_in->angle;
     state.flyWheelSpeed = req_in->speed;
 
@@ -248,15 +249,78 @@ void debugWorker::run(){
     
 };
 
+#define ARM_REST_POS 1000.0
+#define ARM_IN_POS 2000.0
+#define ARM_OUT_POS 0.0
 // Dubug worker accesses all the indexes of qmd
 void launchWorker::run(){
 
     while (true){
         queryRunningState();
-        // TODO: PID implementation of arm state
-        // ctx.current->arm_state
 
-        ESP_LOGI("launchWorker", "working");
+        // keyframes of launch task
+        switch (ctx.target.launchState)
+        {
+        case ball_handler_state_t::LAUNCH_BEGIN: {
+            ctx.cfg->armController.position = ARM_REST_POS;
+            ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
+            ctx.current->flywheel_angle = ctx.target.flywheel_angle;
+        }; break;
+
+
+        case ball_handler_state_t::LAUNCH_PRE_THROW: {
+            ctx.cfg->armController.position = ARM_IN_POS;
+            ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
+            ctx.current->flywheel_angle = ctx.target.flywheel_angle;
+        }; break;
+
+        case ball_handler_state_t::LAUNCH_POST_THROW: {
+            ctx.cfg->armController.position = ARM_REST_POS;
+            ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = 0.0f;
+            ctx.current->flywheel_angle = ctx.target.flywheel_angle;
+        }; break;
+        
+        default:
+            break;
+        }
+
+        
+        // call update to pid controllers
+        ctx.cfg->armController.update();
+        ctx.cfg->flylController.update();
+        ctx.cfg->flyuController.update();
+
+
+        //check for state transitions 
+        switch (ctx.target.launchState)
+        {
+        case ball_handler_state_t::LAUNCH_BEGIN: 
+            if(ctx.cfg->armController.reached() && 
+                ctx.cfg->flylController.reached() && 
+                ctx.cfg->flylController.reached()) ctx.target.launchState = ball_handler_state_t::LAUNCH_PRE_THROW;
+
+        break;
+
+
+        case ball_handler_state_t::LAUNCH_PRE_THROW: {
+            // if the target is reached or any limiter switch is hit
+            if(ctx.cfg->armController.reached() || 
+                ctx.current->armLimiterState[0] || 
+                ctx.current->armLimiterState[1]) ctx.target.launchState = ball_handler_state_t::LAUNCH_POST_THROW;
+
+        }; break;
+
+        case ball_handler_state_t::LAUNCH_POST_THROW: {
+            if(ctx.cfg->armController.reached() && 
+                ctx.cfg->flylController.reached() && 
+                ctx.cfg->flylController.reached()) ctx.target.launchState = ball_handler_state_t::LAUNCH_COMPLETE;
+        }; break;
+        
+        default:
+            break;
+        }
+
+        ESP_LOGI("launchWorker", "current state %d", ctx.target.launchState);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
@@ -268,16 +332,15 @@ void ballHandler::eventInput(eventType type){
     switch (type)
     {
     case THROW_SERVICE:
-        dbgWorker.block();
-
-        lnchWorker.unblock();
+        if(dbgWorker.getRunningStatus()) dbgWorker.block();
+        if(!lnchWorker.getRunningStatus()) lnchWorker.unblock();
         break;
     
 
     case DEBUG_EVENT:
-        lnchWorker.block();
-        
-        dbgWorker.unblock();
+        if(lnchWorker.getRunningStatus()) lnchWorker.block();
+        if(!dbgWorker.getRunningStatus()) dbgWorker.unblock();
+
     default:
         break;
     }

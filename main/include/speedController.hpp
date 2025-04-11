@@ -16,7 +16,7 @@ public:
 
     float update();
 
-    inline bool reached() { abs(error) <= error_tolerance ;};
+    inline bool reached() { return abs(error) <= error_tolerance ;};
 
 private:
     float feedback = 0.0f, prevTickCount = 0.0f;
@@ -31,7 +31,7 @@ public:
 
     float position = 0., error_tolerance = 0.0f;
     
-    inline bool reached() { abs(error) <= error_tolerance ;};
+    inline bool reached() { return abs(error) <= error_tolerance ;};
 
 };
 

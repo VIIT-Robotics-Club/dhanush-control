@@ -18,6 +18,7 @@
 #include <std_msgs/msg/bool.h>
 
 #include <multiThreadExecutor/workerThread.hpp>
+#include <speedController.hpp>
 
 
 // state of the mechanism represented as a object  
@@ -27,8 +28,23 @@ struct ball_handler_state_t {
 
     float encoderFeedBack[DECODER_MAX_WHEEL_COUNT] = {0.0f};
     bool finger_state = false;
-    // gpio levels of arm limiters
+    // gpio levels of arm limiters, inner and outer
     bool armLimiterState[2] = {false};
+
+    enum launch_state_t {
+        LAUNCH_BEGIN = 0,
+        LAUNCH_PRE_THROW,
+        LAUNCH_POST_THROW,
+        LAUNCH_COMPLETE,
+    } launchState;
+
+    enum dribble_state_t {
+        DRIBBLE_BEGIN = 0,
+        DRIBBLE_READY,
+        DRIBBLE_PRE_THROW,
+        DRIBBLE_POST_THROW,
+        DRIBBLE_COMPLETE,
+    } dribbleState;
 };
 
 
@@ -40,6 +56,8 @@ struct ball_handler_state_t {
 struct ball_handler_config_t{
     qmd* qmd_handler = 0;
     decoder* decoder_handle = 0;
+    positionController armController;
+    speedController flylController, flyuController;
 
     int flyWheelLower = INDEX_FLYW_L, 
         flyWheelUpper = INDEX_FLYW_U, 
@@ -70,7 +88,7 @@ public:
 
 class launchWorker : public workerThread {
 public:
-    
+
     inline void setContext(threadContext_t& p_ctx) { ctx = p_ctx;};
     void run();
     threadContext_t ctx;
