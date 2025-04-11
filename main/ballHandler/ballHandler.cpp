@@ -166,12 +166,17 @@ void ballHandler::hw_task_callback(){
             cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
 
         // if limit switch is triggered, do not move toward that direction 
-        if(current_state.armLimiterState[0] && current_state.arm_state > 0.0f) cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
-        else if (current_state.armLimiterState[1] && current_state.arm_state < 0.0f) cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
-        else cfg.qmd_handler->speeds[cfg.arm] = 0.0f;
-
+        if( (current_state.armLimiterState[0] && current_state.arm_state > 0.0f) || 
+            (current_state.armLimiterState[1] && current_state.arm_state < 0.0f)   ) 
+            cfg.qmd_handler->speeds[cfg.arm] = 0.0f;
+        else {
+            cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
+            cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
+        }
+            
+        ESP_LOGI(TAG, "arm state %f", current_state.arm_state);
         cfg.qmd_handler->update();
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     
     vTaskDelete(NULL);
@@ -193,7 +198,9 @@ void ballHandler::arm_subs_callback(const void* msgin){
     
     const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
     ball_handler_state_t& state = def->dbgWorker.ctx.target;
-    state.flyWheelSpeed = msg->data;
+    state.arm_state = msg->data;
+
+    ESP_LOGD("armSub", "received arm state %f", state.arm_state);
     def->eventInput(DEBUG_EVENT);
 
 }
@@ -271,7 +278,7 @@ void debugWorker::run(){
         // ctx.current->arm_state
         ctx.current->arm_state = ctx.target.arm_state;
 
-        ESP_LOGI("debugWorker", "working");
+        // ESP_LOGI("debugWorker", "arm %f", ctx.target.arm_state);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
