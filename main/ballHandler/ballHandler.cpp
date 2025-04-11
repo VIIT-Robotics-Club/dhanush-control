@@ -54,7 +54,7 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 
 //maps ISR to arm limiter
     gpio_config_t limiter_cfg = {
-        .pin_bit_mask = (uint64_t)((0x01 << cfg.armLimiterL) | (0x01 << cfg.armLimiterU)),
+        .pin_bit_mask = (uint64_t)((0x01 << cfg.armLimiterExterior) | (0x01 << cfg.armLimiterInterior)),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -72,12 +72,12 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
     gpio_config(&finger_cfg);
     gpio_install_isr_service( ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED);
 
-    gpio_isr_handler_add(cfg.armLimiterU, arm_limiter_isr,  this);
-    gpio_isr_handler_add(cfg.armLimiterL, arm_limiter_isr, this);
+    gpio_isr_handler_add(cfg.armLimiterInterior, arm_limiter_isr,  this);
+    gpio_isr_handler_add(cfg.armLimiterExterior, arm_limiter_isr, this);
     
     // Enable the interrupts
-    gpio_intr_enable(cfg.armLimiterU);
-    gpio_intr_enable(cfg.armLimiterL);
+    gpio_intr_enable(cfg.armLimiterInterior);
+    gpio_intr_enable(cfg.armLimiterExterior);
 };
 
 
@@ -143,9 +143,9 @@ void ballHandler::declareParameters(){
 void ballHandler::hw_task_callback(){
 
     while (1){
-        // get gpio levels
-        current_state.armLimiterState[0] = gpio_get_level(cfg.armLimiterL);
-        current_state.armLimiterState[1] = gpio_get_level(cfg.armLimiterU);
+        // get gpio levels, active state is logic low
+        current_state.armLimiterState[0] = ! gpio_get_level(cfg.armLimiterExterior);
+        current_state.armLimiterState[1] = ! gpio_get_level(cfg.armLimiterInterior);
 
         // update gpio levels
         gpio_set_level(cfg.finger, current_state.finger_state);
@@ -160,8 +160,11 @@ void ballHandler::hw_task_callback(){
         
         //  speed 
         cfg.qmd_handler->speeds[cfg.flyWheelLower] = cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed;
-        cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
-        
+
+        // check if internal limit switch is triggered, restrict angle to leaning down
+        if(!(current_state.armLimiterState[1] && current_state.flywheel_angle < cfg.qmd_handler->speeds[cfg.flyWheelAngleRight]))
+            cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
+
         // if limit switch is triggered, do not move toward that direction 
         if(current_state.armLimiterState[0] && current_state.arm_state > 0.0f) cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
         else if (current_state.armLimiterState[1] && current_state.arm_state < 0.0f) cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
@@ -274,9 +277,7 @@ void debugWorker::run(){
     
 };
 
-#define ARM_REST_POS 1000.0
-#define ARM_IN_POS 2000.0
-#define ARM_OUT_POS 0.0
+
 // Dubug worker accesses all the indexes of qmd
 void launchWorker::run(){
 
@@ -352,9 +353,7 @@ void launchWorker::run(){
 };
 
 
-#define GRIPPER_OFF_TO_FINGER_MS 100
-#define FINGER_WAIT_MS 100
-#define GRAB_DELAY_MS 100
+
 
 
 void dribbleWorker::run(){
