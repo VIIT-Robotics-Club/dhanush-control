@@ -61,11 +61,10 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
     xTaskCreate((TaskFunction_t) &ballHandler::hw_task_callback, BALL_HANDLER_TASK_NAME, BALL_HANDLER_TASK_STACK, 
         this, BALL_HANDLER_TASK_PRIORITY, &hwTaskHandle);
 
-    // TODO configure flyWheel controllers
     // configure pid controllers
     cfg.armController.setIo(&current_state.arm_state, &cfg.decoder_handle->count[cfg.arm]);
-    // cfg.flylController.setIo(&current_state.fly, &cfg.decoder_handle->count[cfg.arm]);
-    // cfg.flyuController.setIo(&current_state.arm_state, &cfg.decoder_handle->count[cfg.arm]);
+    cfg.flylController.setIo(&current_state.flyWheelSpeed_L, &cfg.decoder_handle->count[cfg.flyWheelLower]);
+    cfg.flyuController.setIo(&current_state.flyWheelSpeed_U, &cfg.decoder_handle->count[cfg.flyWheelUpper]);
 
 //maps ISR to arm limiter
     gpio_config_t limiter_cfg = {
@@ -76,15 +75,15 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
         .intr_type = GPIO_INTR_NEGEDGE
     };
 
-    gpio_config_t finger_cfg = {
-        .pin_bit_mask = (uint64_t)(0x01 << cfg.finger),
+    gpio_config_t arm_gpio_cfg = {
+        .pin_bit_mask = (uint64_t)(0x01 << cfg.finger | 0x01 << cfg.gripper),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_ENABLE,
     };
 
     gpio_config(&limiter_cfg);
-    gpio_config(&finger_cfg);
+    gpio_config(&arm_gpio_cfg);
     gpio_install_isr_service( ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED);
 
     gpio_isr_handler_add(cfg.armLimiterInterior, arm_limiter_isr_int,  this);
@@ -164,6 +163,7 @@ void ballHandler::hw_task_callback(){
 
         // update gpio levels
         gpio_set_level(cfg.finger, current_state.finger_state);
+        gpio_set_level(cfg.gripper, current_state.gripper_state);
 
         // calculate speeds from encoder ticks
         cfg.decoder_handle->update();
@@ -174,7 +174,8 @@ void ballHandler::hw_task_callback(){
         memcpy(&current_state.encoderFeedBack, cfg.decoder_handle->count, DECODER_MAX_WHEEL_COUNT * sizeof(float));
         
         //  speed 
-        cfg.qmd_handler->speeds[cfg.flyWheelLower] = cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed;
+        cfg.qmd_handler->speeds[cfg.flyWheelLower] = current_state.flyWheelSpeed_L;
+        cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed_U;
 
         // check if internal limit switch is triggered, restrict angle to leaning down
         if(!(current_state.armLimiterState[1] && current_state.flywheel_angle < cfg.qmd_handler->speeds[cfg.flyWheelAngleRight]))
@@ -284,7 +285,9 @@ void debugWorker::run(){
         queryRunningState();
 
         // handle all the inputs from debug topic
-        ctx.current->flyWheelSpeed  = (1.0 - alpha) * ctx.current->flyWheelSpeed + (alpha)  * ctx.target.flyWheelSpeed;
+        ctx.current->flyWheelSpeed_U = ctx.current->flyWheelSpeed_L  = 
+            (1.0 - alpha) * ctx.current->flyWheelSpeed + (alpha)  * ctx.target.flyWheelSpeed;
+
         ctx.current->finger_state = ctx.target.finger_state;
         ctx.current->flywheel_angle = ctx.target.flywheel_angle;
         
@@ -292,7 +295,12 @@ void debugWorker::run(){
         // ctx.current->arm_state
         ctx.current->arm_state = ctx.target.arm_state;
 
-        ESP_LOGI(DBG_WRKR, "arm %f", ctx.target.arm_state);
+        ESP_LOGI(DBG_WRKR, "arm %f flywheel %f finger %d angle %f", 
+            ctx.target.arm_state,
+            ctx.target.flyWheelSpeed_L,
+            ctx.target.finger_state,
+            ctx.target.flywheel_angle
+        );
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
@@ -331,12 +339,10 @@ void launchWorker::run(){
             break;
         }
 
-        // TODO call flyWheel Controllers
         // call update to pid controllers
         ctx.cfg->armController.update();
-
-        // ctx.cfg->flylController.update();
-        // ctx.cfg->flyuController.update();
+        ctx.cfg->flylController.update();
+        ctx.cfg->flyuController.update();
 
 
         //check for state transitions 
@@ -356,13 +362,15 @@ void launchWorker::run(){
                 ctx.current->armLimiterState[0] || 
                 ctx.current->armLimiterState[1]) ctx.target.launchState = ball_handler_state_t::LAUNCH_POST_THROW;
 
-        }; break;
+        }; 
+        break;
 
         case ball_handler_state_t::LAUNCH_POST_THROW: {
             if(ctx.cfg->armController.reached() && 
                 ctx.cfg->flylController.reached() && 
                 ctx.cfg->flylController.reached()) ctx.target.launchState = ball_handler_state_t::LAUNCH_COMPLETE;
-        }; break;
+        }; 
+        break;
         
         default:
             break;
@@ -393,17 +401,20 @@ void dribbleWorker::run(){
 
         case ball_handler_state_t::DRIBBLE_READY: {
             // TODO impl gripper on
+            // ctx.current->gripper_state = true;
             ctx.cfg->armController.position = ARM_OUT_POS;
         }; break;
-
+        
         case ball_handler_state_t::DRIBBLE_PRE_THROW: {
             // TODO impl gripper off
+            // ctx.current->gripper_state = false;
             vTaskDelay(pdMS_TO_TICKS(GRIPPER_OFF_TO_FINGER_MS));
             ctx.current->finger_state = true;
             vTaskDelay(pdMS_TO_TICKS(FINGER_WAIT_MS));
             ctx.current->finger_state = false;
             vTaskDelay(pdMS_TO_TICKS(GRAB_DELAY_MS));
             // TODO impl gripper on
+            // ctx.current->gripper_state = true;
 
 
             ctx.cfg->armController.position = ARM_REST_POS;

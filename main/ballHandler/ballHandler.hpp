@@ -36,11 +36,12 @@
 
 // state of the mechanism represented as a object  
 struct ball_handler_state_t {
-    float arm_state = 0.0f, flyWheelSpeed = 0.0f, flywheel_angle = 0.0f;
+    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.0f;
     float feedbackFlyWheelSpeed_L = 0.0f, feedbackFlyWheelSpeed_U = 0.0f;
+    float flyWheelSpeed = 0.0f;
 
     float encoderFeedBack[DECODER_MAX_WHEEL_COUNT] = {0.0f};
-    bool finger_state = false;
+    bool finger_state = false, gripper_state = false;
     // gpio levels of arm limiters, exterior limiter and interior limiter
     bool armLimiterState[2] = {false};
 
@@ -49,7 +50,7 @@ struct ball_handler_state_t {
         LAUNCH_PRE_THROW,
         LAUNCH_POST_THROW,
         LAUNCH_COMPLETE,
-    } launchState;
+    } launchState = LAUNCH_BEGIN;
 
     enum dribble_state_t {
         DRIBBLE_BEGIN = 0,
@@ -57,7 +58,7 @@ struct ball_handler_state_t {
         DRIBBLE_PRE_THROW,
         DRIBBLE_POST_THROW,
         DRIBBLE_COMPLETE,
-    } dribbleState;
+    } dribbleState = DRIBBLE_BEGIN;
 };
 
 
@@ -79,6 +80,7 @@ struct ball_handler_config_t{
         flyWheelAngleRight = INDEX_FLYW_ANGLE_R;
 
     gpio_num_t armLimiterExterior = ARM_LIMIT_L, armLimiterInterior = ARM_LIMIT_U, finger = FINGER_GPIO;
+    gpio_num_t gripper = GRIPPER_GPIO;
 };
 
 
