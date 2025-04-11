@@ -16,7 +16,7 @@ public:
 
     float update();
 
-    inline bool reached() { return abs(error) <= error_tolerance ;};
+    inline bool reached() { return abs(signals[0]) <= error_tolerance ;};
 
 private:
     float feedback = 0.0f, prevTickCount = 0.0f;
@@ -27,11 +27,14 @@ private:
 
 class positionController : public pidController {
 public:
-    positionController(qmd* qmd_handler, decoder* dec, int index = 0);
+
+    void setIo(qmd* qmd_handler, decoder* dec, int index = 0);
+    void setIo(float* out, float* process);
+
 
     float position = 0., error_tolerance = 0.0f;
     
-    inline bool reached() { return abs(error) <= error_tolerance ;};
+    inline bool reached() { return abs(signals[0]) <= error_tolerance ;};
 
 };
 

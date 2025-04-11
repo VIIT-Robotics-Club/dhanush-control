@@ -28,23 +28,38 @@ const rosidl_message_type_support_t * bool_type_support = ROSIDL_GET_MSG_TYPE_SU
 
 ballHandler* ballHandler::def = 0;
 
-void arm_limiter_isr(void * arg){
+void arm_limiter_isr_ext(void * arg){
     ballHandler* handler = (ballHandler*) arg;
     qmd& qmdHandler = *handler->cfg.qmd_handler;
 
     // TODO change to update qmd directly, status flag
     // handler->current_state.arm_state = 0.0f;
     qmdHandler.speeds[handler->cfg.arm]  = 0.0f;
-    qmdHandler.update();
+    handler->cfg.decoder_handle->reset(handler->cfg.arm);
+    // qmdHandler.update();
+    // handler->cfg.qmd_handler[handler->cfg.arm] = 0.0f;
+    
+    // vTaskNotifyGiveFromISR(handler->hwTaskHandle, NULL);
+};
+
+void arm_limiter_isr_int(void * arg){
+    ballHandler* handler = (ballHandler*) arg;
+    qmd& qmdHandler = *handler->cfg.qmd_handler;
+
+    // TODO change to update qmd directly, status flag
+    // handler->current_state.arm_state = 0.0f;
+    qmdHandler.speeds[handler->cfg.arm]  = 0.0f;
+    // qmdHandler.update();
     // handler->cfg.qmd_handler[handler->cfg.arm] = 0.0f;
     
     // vTaskNotifyGiveFromISR(handler->hwTaskHandle, NULL);
 };
 
 
-
 ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
 
+
+    cfg.armController.output = &current_state.arm_state;
 
     def = this;
     //starts ball handler thread
@@ -72,8 +87,8 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
     gpio_config(&finger_cfg);
     gpio_install_isr_service( ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED);
 
-    gpio_isr_handler_add(cfg.armLimiterInterior, arm_limiter_isr,  this);
-    gpio_isr_handler_add(cfg.armLimiterExterior, arm_limiter_isr, this);
+    gpio_isr_handler_add(cfg.armLimiterInterior, arm_limiter_isr_int,  this);
+    gpio_isr_handler_add(cfg.armLimiterExterior, arm_limiter_isr_ext, this);
     
     // Enable the interrupts
     gpio_intr_enable(cfg.armLimiterInterior);
@@ -166,15 +181,14 @@ void ballHandler::hw_task_callback(){
             cfg.qmd_handler->speeds[cfg.flyWheelAngleLeft] = cfg.qmd_handler->speeds[cfg.flyWheelAngleRight] = current_state.flywheel_angle;
 
         // if limit switch is triggered, do not move toward that direction 
-        if( (current_state.armLimiterState[0] && current_state.arm_state > 0.0f) || 
-            (current_state.armLimiterState[1] && current_state.arm_state < 0.0f)   ) 
+        if( (current_state.armLimiterState[0] && current_state.arm_state < 0.0f) || 
+            (current_state.armLimiterState[1] && current_state.arm_state > 0.0f)   ) 
             cfg.qmd_handler->speeds[cfg.arm] = 0.0f;
         else {
             cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
-            cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
         }
             
-        ESP_LOGI(TAG, "arm state %f", current_state.arm_state);
+        // ESP_LOGI(TAG, "arm state %f arm enc %f ", current_state.arm_state, cfg.decoder_handle->count[cfg.arm]);
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -278,7 +292,7 @@ void debugWorker::run(){
         // ctx.current->arm_state
         ctx.current->arm_state = ctx.target.arm_state;
 
-        // ESP_LOGI("debugWorker", "arm %f", ctx.target.arm_state);
+        ESP_LOGI("debugWorker", "arm %f", ctx.target.arm_state);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
@@ -320,8 +334,9 @@ void launchWorker::run(){
         
         // call update to pid controllers
         ctx.cfg->armController.update();
-        ctx.cfg->flylController.update();
-        ctx.cfg->flyuController.update();
+
+        // ctx.cfg->flylController.update();
+        // ctx.cfg->flyuController.update();
 
 
         //check for state transitions 
@@ -353,7 +368,7 @@ void launchWorker::run(){
             break;
         }
 
-        ESP_LOGI("launchWorker", "current state %d", ctx.target.launchState);
+        // ESP_LOGI("launchWorker", "current state %d", ctx.target.launchState);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
