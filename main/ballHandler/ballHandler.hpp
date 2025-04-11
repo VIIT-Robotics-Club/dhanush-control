@@ -15,6 +15,7 @@
 #include <rclc/rclc.h>
 #include <std_msgs/msg/float32.h>
 #include <dhanush_srv/srv/speed_angle.h>
+#include <std_srvs/srv/trigger.h>
 #include <std_msgs/msg/bool.h>
 
 #include <multiThreadExecutor/workerThread.hpp>
@@ -96,6 +97,17 @@ public:
     float alpha = 0.1f;
 };
 
+
+class dribbleWorker : public workerThread {
+public:
+
+    inline void setContext(threadContext_t& p_ctx) { ctx = p_ctx;};
+    void run();
+
+    threadContext_t ctx;
+    float alpha = 0.1f;
+};
+
 class ballHandler : public urosElement {
 
 public:
@@ -120,7 +132,6 @@ public:
 
     void init();
     
-    private:
     
 private:
 
@@ -131,6 +142,7 @@ void declareDebugRclInterfaces();
     static void flyWheel_subs_callback(const void * msgin);
     static void arm_subs_callback(const void * msgin);
     static void service_callback(const void * req, void *res);
+    static void dribble_service_callback(const void * req, void *res);
     static void angle_subs_callback(const void* msgin);
     static void finger_subs_callback(const void * msgin);
 
@@ -138,7 +150,10 @@ void declareDebugRclInterfaces();
     
     dhanush_srv__srv__SpeedAngle_Request req;
     dhanush_srv__srv__SpeedAngle_Response res;
-    rcl_service_t service;
+    std_srvs__srv__Trigger_Request  dribble_req;
+    std_srvs__srv__Trigger_Response dribble_res;
+
+    rcl_service_t service, dribble_service;
 
 
 public:
@@ -155,15 +170,19 @@ private:
     std_msgs__msg__Bool finger_msg;
 
     const rosidl_service_type_support_t  * support = ROSIDL_GET_SRV_TYPE_SUPPORT(dhanush_srv, srv, SpeedAngle);
+    const rosidl_service_type_support_t  * trigger_support = ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger);
 
 private:
     // worker threads for multiple tasks
     debugWorker dbgWorker;
     launchWorker lnchWorker;
+    dribbleWorker drbWorker;
+
 
     enum eventType {
         THROW_SERVICE = 0,
-        DEBUG_EVENT = 1,
+        DRIBBLE_SERVICE,
+        DEBUG_EVENT,
     };
 
     void eventInput(eventType type);

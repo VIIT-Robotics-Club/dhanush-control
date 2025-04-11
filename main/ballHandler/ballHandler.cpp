@@ -19,7 +19,7 @@ const char  *flyWheel_topic_name = "/flyWheel_speed",
             *finger_topic_name = "/finger",
             *angle_topic_name = "/flywheel_angle";
 
-const char * service_name = "launch_ball";
+const char * service_name = "launch_ball", *dribble_service_name = "dribble";
 
 
 const rosidl_message_type_support_t * float32_type_support = ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32);
@@ -114,14 +114,23 @@ void ballHandler::init(){
     lnchWorker.setContext(ctx);
     lnchWorker.block();
     lnchWorker.start();
+    drbWorker.setContext(ctx);
+    drbWorker.block();
+    drbWorker.start();
 
 
     dhanush_srv__srv__SpeedAngle_Request__init(&req);
     dhanush_srv__srv__SpeedAngle_Response__init(&res);
+    std_srvs__srv__Trigger_Request__init(&dribble_req);
+    std_srvs__srv__Trigger_Response__init(&dribble_res);
 
     // create launch service to trigger ball launch sequence  
     ESP_ERROR_CHECK(rclc_service_init_default(&service, node, support, service_name));
     ESP_ERROR_CHECK(rclc_executor_add_service(exec, &service, &req, &res, service_callback));
+
+    // create launch service to trigger ball launch sequence  
+    ESP_ERROR_CHECK(rclc_service_init_default(&dribble_service, node, support, dribble_service_name));
+    ESP_ERROR_CHECK(rclc_executor_add_service(exec, &dribble_service, &dribble_req, &dribble_res, dribble_service_callback));
 };
 
 
@@ -211,6 +220,22 @@ void ballHandler::service_callback(const void * req, void *res)
     state.flyWheelSpeed = req_in->speed;
 
     def->eventInput(THROW_SERVICE);
+    res_in->success = true;
+}
+
+
+void ballHandler::dribble_service_callback(const void * req, void *res)
+{
+    std_srvs__srv__Trigger_Request * req_in = (std_srvs__srv__Trigger_Request*)   req;
+    std_srvs__srv__Trigger_Response * res_in = (std_srvs__srv__Trigger_Response*) res;
+
+    ESP_LOGI(TAG, "%s service called ", service_name);    
+
+
+    ball_handler_state_t& state = def->drbWorker.ctx.target;
+    state.dribbleState = ball_handler_state_t::DRIBBLE_BEGIN;
+
+    def->eventInput(DRIBBLE_SERVICE);
     res_in->success = true;
 }
 
@@ -327,19 +352,112 @@ void launchWorker::run(){
 };
 
 
+#define GRIPPER_OFF_TO_FINGER_MS 100
+#define FINGER_WAIT_MS 100
+#define GRAB_DELAY_MS 100
+
+
+void dribbleWorker::run(){
+
+    while (true){
+        queryRunningState();
+
+        // keyframes of launch task
+        switch (ctx.target.dribbleState)
+        {
+        case ball_handler_state_t::DRIBBLE_BEGIN: {
+            ctx.cfg->armController.position = ARM_REST_POS;
+        }; break;
+
+
+        case ball_handler_state_t::DRIBBLE_READY: {
+            // TODO impl gripper on
+            ctx.cfg->armController.position = ARM_OUT_POS;
+        }; break;
+
+        case ball_handler_state_t::DRIBBLE_PRE_THROW: {
+            // TODO impl gripper off
+            vTaskDelay(pdMS_TO_TICKS(GRIPPER_OFF_TO_FINGER_MS));
+            ctx.current->finger_state = true;
+            vTaskDelay(pdMS_TO_TICKS(FINGER_WAIT_MS));
+            ctx.current->finger_state = false;
+            vTaskDelay(pdMS_TO_TICKS(GRAB_DELAY_MS));
+            // TODO impl gripper on
+
+
+            ctx.cfg->armController.position = ARM_REST_POS;
+        }; break;
+        
+        default:
+            break;
+        }
+
+        
+        // call update to pid controllers
+        ctx.cfg->armController.update();
+
+
+        //check for state transitions 
+        switch (ctx.target.dribbleState)
+        {
+        case ball_handler_state_t::DRIBBLE_BEGIN: 
+            if(ctx.cfg->armController.reached() && 
+                ctx.cfg->flylController.reached() && 
+                ctx.cfg->flylController.reached()) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_READY;
+
+        break;
+
+
+        case ball_handler_state_t::DRIBBLE_READY: {
+            // if the target is reached or any limiter switch is hit
+            if(ctx.cfg->armController.reached() || 
+                ctx.current->armLimiterState[0] || 
+                ctx.current->armLimiterState[1]) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_PRE_THROW;
+
+        }; break;
+
+        case ball_handler_state_t::DRIBBLE_PRE_THROW: {
+            if(ctx.cfg->armController.reached() && 
+                ctx.cfg->flylController.reached() && 
+                ctx.cfg->flylController.reached()) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_COMPLETE;
+        }; break;
+        
+        default:
+            break;
+        }
+
+        ESP_LOGI("dribbleWorker", "current state %d", ctx.target.dribbleState);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    
+};
+
+
 void ballHandler::eventInput(eventType type){
 
     switch (type)
     {
     case THROW_SERVICE:
+        if(drbWorker.getRunningStatus()) drbWorker.block();
         if(dbgWorker.getRunningStatus()) dbgWorker.block();
+
         if(!lnchWorker.getRunningStatus()) lnchWorker.unblock();
         break;
-    
-
-    case DEBUG_EVENT:
+        
+        
+    case DRIBBLE_SERVICE:
         if(lnchWorker.getRunningStatus()) lnchWorker.block();
+        if(dbgWorker.getRunningStatus()) dbgWorker.block();
+
+        if(!drbWorker.getRunningStatus()) drbWorker.unblock();
+        break;
+        
+    case DEBUG_EVENT:
+        if(drbWorker.getRunningStatus()) drbWorker.block();
+        if(lnchWorker.getRunningStatus()) lnchWorker.block();
+
         if(!dbgWorker.getRunningStatus()) dbgWorker.unblock();
+        break;
 
     default:
         break;
