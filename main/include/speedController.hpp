@@ -8,18 +8,31 @@
 #include <quadrature.hpp>
 
 
+
+
+// standard configuration for position controller 
+extern pid_config_t defSpeedController;
+extern pid_config_t defPositionController;
+
+
+
 class speedController : public pidController {
 public:
-    speedController(qmd* qmd_handler, decoder* dec, int index = 0);
-
     float speed = 0.0f, error_tolerance = 0.0f;
+
+    speedController(pid_config_t& p_cfg = defPositionController);
+
+
+    void setIo(qmd* qmd_handler, decoder* dec, int index = 0);
+    void setIo(float* out, float* process);
+
 
     float update();
 
-    inline bool reached() { return abs(signals[0]) <= error_tolerance ;};
+    inline bool reached() { return abs(error) <= error_tolerance ;};
 
 private:
-    float feedback = 0.0f, prevTickCount = 0.0f;
+    float feedbackSpeed = 0.0f, prevTickCount = 0.0f;
     float* decoderInput;
 };
 
@@ -28,13 +41,15 @@ private:
 class positionController : public pidController {
 public:
 
+    positionController(pid_config_t& p_cfg = defPositionController);
+
     void setIo(qmd* qmd_handler, decoder* dec, int index = 0);
     void setIo(float* out, float* process);
 
 
-    float position = 0., error_tolerance = 0.0f;
+    float position = 0.0f, error_tolerance = 0.0f;
     
-    inline bool reached() { return abs(signals[0]) <= error_tolerance ;};
+    inline bool reached() { return abs(error) <= error_tolerance ;};
 
 };
 

@@ -9,6 +9,10 @@
 #include <urosHandler.hpp>
 
 #define TAG "ball_handler"
+#define DBG_WRKR "debug worker"
+#define LNCH_WRKR "launch worker"
+#define DRIBL_WRKR "dribble worker"
+
 
 #define BALL_HANDLER_TASK_NAME "ballHandlerTask"
 #define BALL_HANDLER_TASK_STACK 4096
@@ -30,29 +34,20 @@ ballHandler* ballHandler::def = 0;
 
 void arm_limiter_isr_ext(void * arg){
     ballHandler* handler = (ballHandler*) arg;
-    qmd& qmdHandler = *handler->cfg.qmd_handler;
+    ball_handler_config_t& cfg = handler->cfg;
 
     // TODO change to update qmd directly, status flag
     // handler->current_state.arm_state = 0.0f;
-    qmdHandler.speeds[handler->cfg.arm]  = 0.0f;
-    handler->cfg.decoder_handle->reset(handler->cfg.arm);
-    // qmdHandler.update();
-    // handler->cfg.qmd_handler[handler->cfg.arm] = 0.0f;
-    
-    // vTaskNotifyGiveFromISR(handler->hwTaskHandle, NULL);
+    cfg.qmd_handler->speeds[cfg.arm]  = 0.0f;
+    cfg.decoder_handle->reset(cfg.arm);
 };
 
 void arm_limiter_isr_int(void * arg){
     ballHandler* handler = (ballHandler*) arg;
-    qmd& qmdHandler = *handler->cfg.qmd_handler;
+    ball_handler_config_t& cfg = handler->cfg;
 
     // TODO change to update qmd directly, status flag
-    // handler->current_state.arm_state = 0.0f;
-    qmdHandler.speeds[handler->cfg.arm]  = 0.0f;
-    // qmdHandler.update();
-    // handler->cfg.qmd_handler[handler->cfg.arm] = 0.0f;
-    
-    // vTaskNotifyGiveFromISR(handler->hwTaskHandle, NULL);
+    cfg.qmd_handler->speeds[cfg.arm]  = 0.0f;
 };
 
 
@@ -66,6 +61,11 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
     xTaskCreate((TaskFunction_t) &ballHandler::hw_task_callback, BALL_HANDLER_TASK_NAME, BALL_HANDLER_TASK_STACK, 
         this, BALL_HANDLER_TASK_PRIORITY, &hwTaskHandle);
 
+    // TODO configure flyWheel controllers
+    // configure pid controllers
+    cfg.armController.setIo(&current_state.arm_state, &cfg.decoder_handle->count[cfg.arm]);
+    // cfg.flylController.setIo(&current_state.fly, &cfg.decoder_handle->count[cfg.arm]);
+    // cfg.flyuController.setIo(&current_state.arm_state, &cfg.decoder_handle->count[cfg.arm]);
 
 //maps ISR to arm limiter
     gpio_config_t limiter_cfg = {
@@ -292,7 +292,7 @@ void debugWorker::run(){
         // ctx.current->arm_state
         ctx.current->arm_state = ctx.target.arm_state;
 
-        ESP_LOGI("debugWorker", "arm %f", ctx.target.arm_state);
+        ESP_LOGI(DBG_WRKR, "arm %f", ctx.target.arm_state);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
@@ -331,7 +331,7 @@ void launchWorker::run(){
             break;
         }
 
-        
+        // TODO call flyWheel Controllers
         // call update to pid controllers
         ctx.cfg->armController.update();
 
@@ -368,7 +368,7 @@ void launchWorker::run(){
             break;
         }
 
-        // ESP_LOGI("launchWorker", "current state %d", ctx.target.launchState);
+        ESP_LOGI(LNCH_WRKR, "current state %d", ctx.target.launchState);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
@@ -447,7 +447,7 @@ void dribbleWorker::run(){
             break;
         }
 
-        ESP_LOGI("dribbleWorker", "current state %d", ctx.target.dribbleState);
+        ESP_LOGI(DRIBL_WRKR, "current state %d", ctx.target.dribbleState);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
