@@ -29,7 +29,7 @@ public:
 
     float update();
 
-    inline bool reached() { return abs(error) <= error_tolerance ;};
+    inline bool reached() { return true ;};
 
 private:
     float feedbackSpeed = 0.0f, prevTickCount = 0.0f;

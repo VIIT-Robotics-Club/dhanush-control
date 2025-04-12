@@ -43,6 +43,10 @@ extern "C" void app_main(void)
         // .flyuController = speedController(handler,dec,4)
     };
 
+    ball_handle.armController.error_tolerance = 50.0f;
+    // ball_handle.flyuController.error_tolerance = 10000.0f;
+    // ball_handle.flylController.error_tolerance = 10000.0f;
+
 
     uros->addThreadExecutor({
         new ballHandler(ball_handle)     

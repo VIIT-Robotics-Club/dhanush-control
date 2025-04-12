@@ -19,7 +19,7 @@
 #define FLYW_ANGLE_R GPIO_NUM_17
 #define G_FLYW_ANGLE_DIR GPIO_NUM_0     //trial value - pass nothing
 #define FINGER_GPIO  GPIO_NUM_16
-#define GRIPPER_GPIO  GPIO_NUM_0
+#define GRIPPER_GPIO  GPIO_NUM_7
 // #define ARM_MOTOR_PWM GPIO_NUM_7
 // #define ARM_MOTOR_DIR GPIO_NUM_9
 

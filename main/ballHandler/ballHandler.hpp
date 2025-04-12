@@ -25,7 +25,7 @@
 // TODO convert these to ros2 parameters
 // configuration for arm
 #define ARM_REST_POS 1000.0     // arm position of rest in terms of encoder ticks 
-#define ARM_IN_POS 2000.0       // inwards arm position  in terms of encoder ticks 
+#define ARM_IN_POS 3000.0       // inwards arm position  in terms of encoder ticks 
 #define ARM_OUT_POS 0.0         // outwards arm position  in terms of encoder ticks 
 
 // configuration for dribble
@@ -36,7 +36,7 @@
 
 // state of the mechanism represented as a object  
 struct ball_handler_state_t {
-    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.0f;
+    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.7f;
     float feedbackFlyWheelSpeed_L = 0.0f, feedbackFlyWheelSpeed_U = 0.0f;
     float flyWheelSpeed = 0.0f;
 

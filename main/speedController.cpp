@@ -4,6 +4,7 @@
 
 
 pid_config_t defSpeedController = {
+    .a = 1.0f
 };
 
 
@@ -12,8 +13,8 @@ pid_config_t defPositionController = {
     .p = 0.003f,
     .i = 0.00f,
     .d = 0.0001,
-    .max = 1.0f,
-    .min = -1.0f,
+    .max = 0.4f,
+    .min = -0.4f,
     .tolerance = 0.05,
     .iRange = 10,
 };
@@ -43,7 +44,9 @@ float speedController::update(){
     feedbackSpeed = *decoderInput - prevTickCount;
     prevTickCount = *decoderInput;
 
-    return pidController::update();
+    float out =  a * speed;
+    *output = out;
+    return out;
 }; 
 
 
