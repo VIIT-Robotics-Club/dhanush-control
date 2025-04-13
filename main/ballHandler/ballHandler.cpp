@@ -145,9 +145,13 @@ void ballHandler::init(){
     ESP_ERROR_CHECK(rclc_executor_add_service(exec, &dribble_service, &dribble_req, &dribble_res, dribble_service_callback));
 };
 
+int64_t p_GRIPPER_OFF_TO_FINGER_MS = GRIPPER_OFF_TO_FINGER_MS, p_FINGER_WAIT_MS = FINGER_WAIT_MS, p_GRAB_DELAY_MS = GRAB_DELAY_MS;
 
 void ballHandler::declareParameters(){
     urosHandler::addParameter_bool("ballHandler_debug", &params.debug, &params);
+    urosHandler::addParameter_int("p_GRIPPER_OFF_TO_FINGER_MS", &p_GRIPPER_OFF_TO_FINGER_MS, nullptr);
+    urosHandler::addParameter_int("p_FINGER_WAIT_MS", &p_FINGER_WAIT_MS, nullptr);
+    urosHandler::addParameter_int("p_GRAB_DELAY_MS", &p_GRAB_DELAY_MS, nullptr);
 };
 
 
@@ -191,7 +195,7 @@ void ballHandler::hw_task_callback(){
             
         // ESP_LOGI(TAG, "arm state %f arm enc %f %d ", current_state.arm_state, cfg.decoder_handle->count[cfg.arm], firstIsr);
         cfg.qmd_handler->update();
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
     
     vTaskDelete(NULL);
@@ -270,7 +274,7 @@ void ballHandler::finger_subs_callback(const void* msgin){
     const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
 
     ball_handler_state_t& state = def->dbgWorker.ctx.target;
-    state.finger_state =  ! msg->data;
+    // state.finger_state =  ! msg->data;
     state.gripper_state = msg->data;
 
 
@@ -417,18 +421,21 @@ void dribbleWorker::run(){
         
         case ball_handler_state_t::DRIBBLE_PRE_THROW: {
             // TODO impl gripper off
-            ctx.current->gripper_state = false;
-            vTaskDelay(pdMS_TO_TICKS(GRIPPER_OFF_TO_FINGER_MS));
             ctx.current->finger_state = true;
-            vTaskDelay(pdMS_TO_TICKS(FINGER_WAIT_MS));
+            vTaskDelay(pdMS_TO_TICKS(p_GRIPPER_OFF_TO_FINGER_MS));
+            ctx.current->gripper_state = false;
+            vTaskDelay(pdMS_TO_TICKS(p_FINGER_WAIT_MS));
             ctx.current->finger_state = false;
-            vTaskDelay(pdMS_TO_TICKS(GRAB_DELAY_MS));
+            vTaskDelay(pdMS_TO_TICKS(p_GRAB_DELAY_MS));
             // TODO impl gripper on
             ctx.current->gripper_state = true;
 
-
             ctx.cfg->armController.position = ARM_REST_POS;
+            ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_POST_THROW;
+
+            
         }; break;
+            
         
         default:
             break;
@@ -458,7 +465,7 @@ void dribbleWorker::run(){
 
         }; break;
 
-        case ball_handler_state_t::DRIBBLE_PRE_THROW: {
+        case ball_handler_state_t::DRIBBLE_POST_THROW: {
             if(ctx.cfg->armController.reached() && 
                 ctx.cfg->flylController.reached() && 
                 ctx.cfg->flylController.reached()) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_COMPLETE;
