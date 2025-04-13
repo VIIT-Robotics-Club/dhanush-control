@@ -10,17 +10,20 @@
 qmd* handler = 0;
 urosHandler* uros = 0;
 decoder* dec = 0;
-int pwmPins[] = {FLYWL_U_PWM, FLYWL_L_PWM, ARM_MOTOR_PWM, FLYW_ANGLE_L, FLYW_ANGLE_R};
-int dirPins[] = {FLYWL_U_DIR, FLYWL_L_DIR, ARM_MOTOR_DIR, G_FLYW_ANGLE_DIR, G_FLYW_ANGLE_DIR};
+int pwmPins[] = {FLYWL_U_PWM, FLYWL_L_PWM, ARM_MOTOR_PWM, FLYW_ANGLE_L, FLYW_ANGLE_R, ARC_ANGLE_L, ARC_ANGLE_R};
+int dirPins[] = {FLYWL_U_DIR, FLYWL_L_DIR, ARM_MOTOR_DIR, SERVO_NO_DIR, SERVO_NO_DIR, SERVO_NO_DIR, SERVO_NO_DIR};
 int PhaseA[] = {GPIO_NUM_0,GPIO_NUM_0,ARM_Phase_A};
 int PhaseB[] = {GPIO_NUM_0,GPIO_NUM_0,ARM_Phase_B};
 extern "C" void app_main(void)
 {
     // initialize quad motoer
-    handler = new qmd(pwmPins,dirPins,5);
+    handler = new qmd(pwmPins,dirPins,7);
     handler->setRange(19990, 0);
     handler->setRange(2500, 500, 3);
     handler->setRange(500, 2500, 4);
+    handler->setRange(2500, 500, 5);
+    handler->setRange(500, 2500, 6);
+
 
     dec = new decoder(PhaseA,PhaseB,3);
 

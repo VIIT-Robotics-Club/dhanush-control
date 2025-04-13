@@ -36,7 +36,7 @@
 
 // state of the mechanism represented as a object  
 struct ball_handler_state_t {
-    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.7f;
+    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.7f, arc_angle = 0.0f;
     float feedbackFlyWheelSpeed_L = 0.0f, feedbackFlyWheelSpeed_U = 0.0f;
     float flyWheelSpeed = 0.0f;
 
@@ -77,8 +77,10 @@ struct ball_handler_config_t{
         flyWheelUpper = INDEX_FLYW_U, 
         arm = INDEX_ARM, 
         flyWheelAngleLeft = INDEX_FLYW_ANGLE_L,
-        flyWheelAngleRight = INDEX_FLYW_ANGLE_R;
-
+        flyWheelAngleRight = INDEX_FLYW_ANGLE_R,
+        arcLeft = INDEX_FLYW_ANGLE_L,
+        arcRight = INDEX_FLYW_ANGLE_R;
+        
     gpio_num_t armLimiterExterior = ARM_LIMIT_L, armLimiterInterior = ARM_LIMIT_U, finger = FINGER_GPIO;
     gpio_num_t gripper = GRIPPER_GPIO;
 };
@@ -129,6 +131,7 @@ public:
     struct params_t : public urosElement::config
     {
         params_t() : urosElement::config("ballHandler", sizeof(params_t)) { load(); };
+        int64_t gripperDelays[3] = { GRIPPER_OFF_TO_FINGER_MS, FINGER_WAIT_MS,  GRAB_DELAY_MS };
         bool debug = false;
     } params;
     

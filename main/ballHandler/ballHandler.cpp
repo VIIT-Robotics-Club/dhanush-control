@@ -149,13 +149,12 @@ void ballHandler::init(){
     ESP_ERROR_CHECK(rclc_executor_add_service(exec, &dribble_service, &dribble_req, &dribble_res, dribble_service_callback));
 };
 
-int64_t p_GRIPPER_OFF_TO_FINGER_MS = GRIPPER_OFF_TO_FINGER_MS, p_FINGER_WAIT_MS = FINGER_WAIT_MS, p_GRAB_DELAY_MS = GRAB_DELAY_MS;
 
 void ballHandler::declareParameters(){
     urosHandler::addParameter_bool("ballHandler_debug", &params.debug, &params);
-    urosHandler::addParameter_int("p_GRIPPER_OFF_TO_FINGER_MS", &p_GRIPPER_OFF_TO_FINGER_MS, nullptr);
-    urosHandler::addParameter_int("p_FINGER_WAIT_MS", &p_FINGER_WAIT_MS, nullptr);
-    urosHandler::addParameter_int("p_GRAB_DELAY_MS", &p_GRAB_DELAY_MS, nullptr);
+    urosHandler::addParameter_int("finger out -> gripper off", &params.gripperDelays[0], &params);
+    urosHandler::addParameter_int("gripper off -> finger in", &params.gripperDelays[1], &params);
+    urosHandler::addParameter_int("finger in -> gripper on", &params.gripperDelays[2], &params);
 };
 
 
@@ -184,6 +183,8 @@ void ballHandler::hw_task_callback(){
         //  speed 
         cfg.qmd_handler->speeds[cfg.flyWheelLower] = current_state.flyWheelSpeed_L;
         cfg.qmd_handler->speeds[cfg.flyWheelUpper] = current_state.flyWheelSpeed_U;
+        cfg.qmd_handler->speeds[cfg.arcLeft] = cfg.qmd_handler->speeds[cfg.arcRight] = current_state.arc_angle;
+
 
         // check if internal limit switch is triggered, restrict angle to leaning down
         if(!(current_state.armLimiterState[1] && current_state.flywheel_angle < cfg.qmd_handler->speeds[cfg.flyWheelAngleRight]))
@@ -218,7 +219,7 @@ void ballHandler::flyWheel_subs_callback(const void * msgin)
 }
 
 void ballHandler::arm_subs_callback(const void* msgin){
-    
+     
     const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
     ball_handler_state_t& state = def->dbgWorker.ctx.target;
     state.arm_state = msg->data;
@@ -342,17 +343,21 @@ void launchWorker::run(){
             ctx.cfg->armController.position = ARM_REST_POS;
             ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
-            ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
+            // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
+            ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = (1.0f - alpha) * ctx.current->flyWheelSpeed_U + alpha * ctx.target.flyWheelSpeed;
         }; break;
-
-
+        
+        
         case ball_handler_state_t::LAUNCH_PRE_THROW: {
             ctx.cfg->armController.position = ARM_IN_POS;
             ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
-            ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
-
+            // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
+            ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = (1.0f - alpha) * ctx.current->flyWheelSpeed_U + alpha * ctx.target.flyWheelSpeed;
+            
             ctx.current->gripper_state = false;
+            ctx.current->arc_angle = 1.0f;
+
         }; break;
 
         case ball_handler_state_t::LAUNCH_POST_THROW: {
@@ -363,6 +368,9 @@ void launchWorker::run(){
 
         }; break;
         
+        case  ball_handler_state_t::LAUNCH_COMPLETE: {
+            ctx.current->arc_angle = 0.0f;
+        }; break;
         default:
             break;
         }
@@ -436,11 +444,11 @@ void dribbleWorker::run(){
         case ball_handler_state_t::DRIBBLE_PRE_THROW: {
             // TODO impl gripper off
             ctx.current->finger_state = true;
-            vTaskDelay(pdMS_TO_TICKS(p_GRIPPER_OFF_TO_FINGER_MS));
+            vTaskDelay(pdMS_TO_TICKS(ballHandler::def->params.gripperDelays[0]));
             ctx.current->gripper_state = false;
-            vTaskDelay(pdMS_TO_TICKS(p_FINGER_WAIT_MS));
+            vTaskDelay(pdMS_TO_TICKS(ballHandler::def->params.gripperDelays[1]));
             ctx.current->finger_state = false;
-            vTaskDelay(pdMS_TO_TICKS(p_GRAB_DELAY_MS));
+            vTaskDelay(pdMS_TO_TICKS(ballHandler::def->params.gripperDelays[2]));
             // TODO impl gripper on
             ctx.current->gripper_state = true;
 
