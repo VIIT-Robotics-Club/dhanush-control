@@ -159,6 +159,7 @@ void declareDebugRclInterfaces();
     static void dribble_service_callback(const void * req, void *res);
     static void angle_subs_callback(const void* msgin);
     static void finger_subs_callback(const void * msgin);
+    static void gripper_subs_callback(const void * msgin);
 
     void hw_task_callback();
     
@@ -172,7 +173,7 @@ void declareDebugRclInterfaces();
 
 public:
     ball_handler_config_t cfg;
-    rcl_subscription_t flyWheel_sub, arm_sub, angle_sub, finger_sub;
+    rcl_subscription_t flyWheel_sub, arm_sub, angle_sub, finger_sub, gripper_sub;
     static ballHandler* def;
 
     TaskHandle_t hwTaskHandle;
@@ -181,7 +182,7 @@ public:
 
 private:
     std_msgs__msg__Float32 flyWheel_msg , arm_msg, angle_msg;
-    std_msgs__msg__Bool finger_msg;
+    std_msgs__msg__Bool finger_msg, gripper_msg;
 
     const rosidl_service_type_support_t  * support = ROSIDL_GET_SRV_TYPE_SUPPORT(dhanush_srv, srv, SpeedAngle);
     const rosidl_service_type_support_t  * trigger_support = ROSIDL_GET_SRV_TYPE_SUPPORT(std_srvs, srv, Trigger);

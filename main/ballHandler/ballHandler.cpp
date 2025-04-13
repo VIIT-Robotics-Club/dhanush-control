@@ -21,7 +21,8 @@
 const char  *flyWheel_topic_name = "/flyWheel_speed", 
             *arm_topic_name = "/arm_speed",
             *finger_topic_name = "/finger",
-            *angle_topic_name = "/flywheel_angle";
+            *angle_topic_name = "/flywheel_angle",
+            *gripper_topic_name = "/gripper";
 
 const char * service_name = "launch_ball", *dribble_service_name = "dribble";
 
@@ -99,17 +100,20 @@ void ballHandler::declareDebugRclInterfaces(){
     std_msgs__msg__Float32__init(&arm_msg);
     std_msgs__msg__Float32__init(&angle_msg);
     std_msgs__msg__Bool__init(&finger_msg);
+    std_msgs__msg__Bool__init(&gripper_msg);
 
     ESP_ERROR_CHECK(rclc_subscription_init_default(&flyWheel_sub, node, float32_type_support, flyWheel_topic_name));
     ESP_ERROR_CHECK(rclc_subscription_init_default(&arm_sub, node, float32_type_support, arm_topic_name));
     rclc_subscription_init_default(&finger_sub, node, bool_type_support, finger_topic_name);
+    ESP_ERROR_CHECK(rclc_subscription_init_default(&gripper_sub, node, bool_type_support, gripper_topic_name));
     ESP_ERROR_CHECK(rclc_subscription_init_default(&angle_sub, node, float32_type_support, angle_topic_name));
 
     
     rclc_executor_add_subscription(exec, &flyWheel_sub, &flyWheel_msg, flyWheel_subs_callback, ON_NEW_DATA);
     rclc_executor_add_subscription(exec, &arm_sub, &arm_msg, arm_subs_callback, ON_NEW_DATA);
     rclc_executor_add_subscription(exec, &finger_sub, &finger_msg, finger_subs_callback, ON_NEW_DATA);
-    ESP_ERROR_CHECK(rclc_executor_add_subscription(exec, &angle_sub, &angle_msg,angle_subs_callback, ON_NEW_DATA));
+    rclc_executor_add_subscription(exec, &gripper_sub, &gripper_msg, gripper_subs_callback, ON_NEW_DATA);
+    rclc_executor_add_subscription(exec, &angle_sub, &angle_msg,angle_subs_callback, ON_NEW_DATA);
 };
 
 void ballHandler::init(){
@@ -274,14 +278,24 @@ void ballHandler::finger_subs_callback(const void* msgin){
     const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
 
     ball_handler_state_t& state = def->dbgWorker.ctx.target;
-    // state.finger_state =  ! msg->data;
-    state.gripper_state = msg->data;
+    state.finger_state = msg->data;
 
 
     def->eventInput(DEBUG_EVENT);
     ESP_LOGD(TAG, "finger state: %d", msg->data);
 }
 
+
+void ballHandler::gripper_subs_callback(const void* msgin){
+    
+    const std_msgs__msg__Bool * msg = (const std_msgs__msg__Bool *)msgin;
+
+    ball_handler_state_t& state = def->dbgWorker.ctx.target;
+    state.gripper_state = msg->data;
+
+    def->eventInput(DEBUG_EVENT);
+    ESP_LOGD(TAG, "gripper state: %d", msg->data);
+}
 
 
 // Dubug worker accesses all the indexes of qmd
