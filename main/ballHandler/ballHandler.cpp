@@ -328,7 +328,7 @@ void launchWorker::run(){
             ctx.cfg->armController.position = ARM_REST_POS;
             ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
-            ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
+            // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
         }; break;
 
 
@@ -336,7 +336,7 @@ void launchWorker::run(){
             ctx.cfg->armController.position = ARM_IN_POS;
             ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
-            ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
+            // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
 
             ctx.current->gripper_state = false;
         }; break;
@@ -345,7 +345,7 @@ void launchWorker::run(){
             ctx.cfg->armController.position = ARM_REST_POS;
             ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = 0.0f;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
-            ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = 0.0f;
+            // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = 0.0f;
 
         }; break;
         
@@ -355,8 +355,8 @@ void launchWorker::run(){
 
         // call update to pid controllers
         ctx.cfg->armController.update();
-        // ctx.cfg->flylController.update();
-        // ctx.cfg->flyuController.update();
+        ctx.cfg->flylController.update();
+        ctx.cfg->flyuController.update();
 
 
         //check for state transitions 

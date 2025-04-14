@@ -8,6 +8,7 @@
 #include <quadrature.hpp>
 
 
+#define SMOOTHER_COEFFICIENT 0.2f
 
 
 // standard configuration for position controller 
@@ -20,7 +21,7 @@ class speedController : public pidController {
 public:
     float speed = 0.0f, error_tolerance = 0.0f;
 
-    speedController(pid_config_t& p_cfg = defPositionController);
+    speedController(pid_config_t& p_cfg = defSpeedController);
 
 
     void setIo(qmd* qmd_handler, decoder* dec, int index = 0);
@@ -29,11 +30,28 @@ public:
 
     float update();
 
+    // TODO impl pid checking on tested implementation
     inline bool reached() { return true ;};
 
-private:
+protected:
     float feedbackSpeed = 0.0f, prevTickCount = 0.0f;
     float* decoderInput;
+};
+
+
+class smoothSpeedController : public speedController{
+public:
+    const static float SMOOTHER_OFF_PERCENT;
+
+    smoothSpeedController(pid_config_t& p_cfg = defSpeedController, float coefficient = SMOOTHER_COEFFICIENT);
+
+    float update();
+
+    bool reached();
+
+private:
+    float coefficient = SMOOTHER_COEFFICIENT; 
+    float smoothedOutput = 0.0f, targetOutput = 0.0f;
 };
 
 

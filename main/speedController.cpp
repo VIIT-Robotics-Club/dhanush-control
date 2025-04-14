@@ -3,6 +3,9 @@
 #include <speedController.hpp>
 
 
+
+const float smoothSpeedController::SMOOTHER_OFF_PERCENT = 0.01f;
+
 pid_config_t defSpeedController = {
     .a = 1.0f
 };
@@ -49,6 +52,22 @@ float speedController::update(){
     return out;
 }; 
 
+
+
+smoothSpeedController::smoothSpeedController(pid_config_t& cfg, float coeff) : speedController(cfg), coefficient(coeff) {};
+
+float smoothSpeedController::update(){
+    // get response from pid controller and filter it with given coefficient
+    targetOutput = speedController::update();
+    smoothedOutput = (1.0 - coefficient) * smoothedOutput + coefficient * targetOutput;
+
+    return smoothedOutput;
+};
+
+
+bool smoothSpeedController::reached(){
+    return speedController::reached() && abs((targetOutput - smoothedOutput) / targetOutput) < SMOOTHER_OFF_PERCENT;
+};
 
 
 positionController::positionController(pid_config_t& p_cfg) : pidController(p_cfg) {

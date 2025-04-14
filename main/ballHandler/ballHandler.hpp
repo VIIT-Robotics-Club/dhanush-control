@@ -71,7 +71,7 @@ struct ball_handler_config_t{
     qmd* qmd_handler = 0;
     decoder* decoder_handle = 0;
     positionController armController;
-    speedController flylController, flyuController;
+    smoothSpeedController flylController, flyuController;
 
     int flyWheelLower = INDEX_FLYW_L, 
         flyWheelUpper = INDEX_FLYW_U, 
