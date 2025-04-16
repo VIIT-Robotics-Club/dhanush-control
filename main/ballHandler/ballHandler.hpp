@@ -33,6 +33,7 @@
 #define FINGER_WAIT_MS 100              // delay in ms, duration for finger to be active
 #define GRAB_DELAY_MS 100               // delay in ms, time for ball to reach gripper
 
+#define PRE_LAUNCH_DELAY_MS 3000
 
 // state of the mechanism represented as a object  
 struct ball_handler_state_t {

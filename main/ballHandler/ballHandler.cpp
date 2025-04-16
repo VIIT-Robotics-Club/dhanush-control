@@ -365,7 +365,10 @@ void launchWorker::run(){
         case ball_handler_state_t::LAUNCH_BEGIN: 
             if(ctx.cfg->armController.reached() && 
                 ctx.cfg->flylController.reached() && 
-                ctx.cfg->flylController.reached()) ctx.target.launchState = ball_handler_state_t::LAUNCH_PRE_THROW;
+                ctx.cfg->flylController.reached()) {
+                    vTaskDelay(pdMS_TO_TICKS(PRE_LAUNCH_DELAY_MS));
+                    ctx.target.launchState = ball_handler_state_t::LAUNCH_PRE_THROW;
+                };
 
         break;
 
