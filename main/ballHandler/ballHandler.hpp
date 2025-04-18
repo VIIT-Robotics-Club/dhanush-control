@@ -42,7 +42,7 @@ struct ball_handler_state_t {
     float flyWheelSpeed = 0.0f;
 
     float encoderFeedBack[DECODER_MAX_WHEEL_COUNT] = {0.0f};
-    bool finger_state = false, gripper_state = false;
+    bool finger_state = false, gripper_state = false, gripper_pir_state = false;
     // gpio levels of arm limiters, exterior limiter and interior limiter
     bool armLimiterState[2] = {false};
 
@@ -81,7 +81,7 @@ struct ball_handler_config_t{
         flyWheelAngleRight = INDEX_FLYW_ANGLE_R;
 
     gpio_num_t armLimiterExterior = ARM_LIMIT_L, armLimiterInterior = ARM_LIMIT_U, finger = FINGER_GPIO;
-    gpio_num_t gripper = GRIPPER_GPIO;
+    gpio_num_t gripper = GRIPPER_GPIO, gripper_pir = GRIPPER_PIR;
 };
 
 

@@ -80,8 +80,18 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
         .pull_down_en = GPIO_PULLDOWN_ENABLE,
     };
 
+    gpio_config_t gripper_pir_config = {
+        .pin_bit_mask = (uint64_t)(0x01 << cfg.gripper_pir),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    };
+
+
     gpio_config(&limiter_cfg);
     gpio_config(&arm_gpio_cfg);
+    gpio_config(&gripper_pir_config);
+
     gpio_install_isr_service( ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED);
 
     gpio_isr_handler_add(cfg.armLimiterInterior, arm_limiter_isr_int,  this);
@@ -162,7 +172,8 @@ void ballHandler::hw_task_callback(){
         // get gpio levels, active state is logic low
         current_state.armLimiterState[0] = ! gpio_get_level(cfg.armLimiterExterior);
         current_state.armLimiterState[1] = ! gpio_get_level(cfg.armLimiterInterior);
-        
+        current_state.gripper_pir_state = ! gpio_get_level(cfg.gripper_pir);
+
         if(current_state.armLimiterState[0]) cfg.decoder_handle->reset(cfg.arm);
 
         // update gpio levels
@@ -429,7 +440,10 @@ void dribbleWorker::run(){
             ctx.current->gripper_state = false;
             vTaskDelay(pdMS_TO_TICKS(p_FINGER_WAIT_MS));
             ctx.current->finger_state = false;
-            vTaskDelay(pdMS_TO_TICKS(p_GRAB_DELAY_MS));
+            int count = 0;
+            while(count++ < 100 && ! ctx.current->gripper_pir_state){
+                vTaskDelay(pdMS_TO_TICKS(10));
+            };
             // TODO impl gripper on
             ctx.current->gripper_state = true;
 

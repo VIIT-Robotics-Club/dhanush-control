@@ -26,6 +26,8 @@
 #define ARM_Phase_A GPIO_NUM_8
 #define ARM_Phase_B GPIO_NUM_3
 
+#define GRIPPER_PIR GPIO_NUM_0
+
 #define INDEX_FLYW_L 0
 #define INDEX_FLYW_U 1
 #define INDEX_ARM 2
