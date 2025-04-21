@@ -8,7 +8,7 @@
 #include <quadrature.hpp>
 
 
-#define SMOOTHER_COEFFICIENT 0.2f
+#define SMOOTHER_COEFFICIENT 0.1f
 
 
 // standard configuration for position controller 

@@ -377,7 +377,7 @@ void launchWorker::run(){
             if(ctx.cfg->armController.reached() && 
                 ctx.cfg->flylController.reached() && 
                 ctx.cfg->flylController.reached()) {
-                    vTaskDelay(pdMS_TO_TICKS(PRE_LAUNCH_DELAY_MS));
+                    // vTaskDelay(pdMS_TO_TICKS(PRE_LAUNCH_DELAY_MS));
                     ctx.target.launchState = ball_handler_state_t::LAUNCH_PRE_THROW;
                 };
 
@@ -388,7 +388,10 @@ void launchWorker::run(){
             // if the target is reached or any limiter switch is hit
             if(ctx.cfg->armController.reached() || 
                 ctx.current->armLimiterState[0] || 
-                ctx.current->armLimiterState[1]) ctx.target.launchState = ball_handler_state_t::LAUNCH_POST_THROW;
+                ctx.current->armLimiterState[1]) {
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    ctx.target.launchState = ball_handler_state_t::LAUNCH_POST_THROW;
+                }
 
         }; 
         break;
