@@ -23,10 +23,13 @@
 // #define ARM_MOTOR_PWM GPIO_NUM_7
 // #define ARM_MOTOR_DIR GPIO_NUM_9
 
+#define FLY_UPPER_PHASE_A GPIO_NUM_13
+#define FLY_LOWER_PHASE_A GPIO_NUM_14
+
 #define ARM_Phase_A GPIO_NUM_8
 #define ARM_Phase_B GPIO_NUM_3
 
-#define GRIPPER_PIR GPIO_NUM_0
+#define GRIPPER_PIR GPIO_NUM_45
 
 #define INDEX_FLYW_L 0
 #define INDEX_FLYW_U 1
