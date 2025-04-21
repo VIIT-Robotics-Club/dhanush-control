@@ -24,14 +24,15 @@
 
 // TODO convert these to ros2 parameters
 // configuration for arm
-#define ARM_REST_POS 1000.0     // arm position of rest in terms of encoder ticks 
+#define ARM_REST_POS 1200.0     // arm position of rest in terms of encoder ticks 
 #define ARM_IN_POS 3000.0       // inwards arm position  in terms of encoder ticks 
-#define ARM_OUT_POS 0.0         // outwards arm position  in terms of encoder ticks 
+#define ARM_OUT_POS -100.0         // outwards arm position  in terms of encoder ticks 
 
 // configuration for dribble
 #define GRIPPER_OFF_TO_FINGER_MS 100    // delay in ms, betweem gripper release and finger active
 #define FINGER_WAIT_MS 100              // delay in ms, duration for finger to be active
 #define GRAB_DELAY_MS 100               // delay in ms, time for ball to reach gripper
+#define POST_DRIBBLE_MS 300               // delay in ms, time for ball to reach gripper
 
 #define PRE_LAUNCH_DELAY_MS 3000
 
