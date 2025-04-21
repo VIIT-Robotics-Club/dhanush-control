@@ -48,7 +48,7 @@ float speedController::update(){
     prevTickCount = *decoderInput;
 
     float out =  a * speed;
-    *output = out;
+    // *output = out;
     return out;
 }; 
 
@@ -61,6 +61,7 @@ float smoothSpeedController::update(){
     targetOutput = speedController::update();
     smoothedOutput = (1.0 - coefficient) * smoothedOutput + coefficient * targetOutput;
 
+    *output = smoothedOutput;
     return smoothedOutput;
 };
 
