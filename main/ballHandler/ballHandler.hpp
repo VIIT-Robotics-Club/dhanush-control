@@ -29,15 +29,15 @@
 #define ARM_OUT_POS -100.0         // outwards arm position  in terms of encoder ticks 
 
 // configuration for dribble
-#define GRIPPER_OFF_TO_FINGER_MS 100    // delay in ms, betweem gripper release and finger active
-#define FINGER_WAIT_MS 100              // delay in ms, duration for finger to be active
+#define FINGER_ON_TO_GRIPPER_OFF 100    // delay in ms, betweem gripper release and finger active
+#define FINGER_RETRACT_WAIT_MS 100              // delay in ms, duration for finger to be active
 #define GRAB_DELAY_MS 100               // delay in ms, time for ball to reach gripper
 #define POST_DRIBBLE_MS 300             // delay in ms, pir reading are ignored, in ball's forward trajectory
 
 #define THROW_WAIT_MS 1000
 // state of the mechanism represented as a object  
 struct ball_handler_state_t {
-    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.7f;
+    float arm_state = -0.2f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.7f;
     float feedbackFlyWheelSpeed_L = 0.0f, feedbackFlyWheelSpeed_U = 0.0f;
     float flyWheelSpeed = 0.0f;
 
@@ -119,8 +119,8 @@ public:
     {
         params_t() : urosElement::config("dribbleWrkr", sizeof(params_t)) { load(); };
         // critical dribble delays as parameters 
-        int64_t p_GRIPPER_OFF_TO_FINGER_MS = GRIPPER_OFF_TO_FINGER_MS, 
-                p_FINGER_WAIT_MS = FINGER_WAIT_MS, 
+        int64_t p_FINGER_ON_TO_GRIPPER_OFF = FINGER_ON_TO_GRIPPER_OFF, 
+                p_FINGER_RETRACT_WAIT_MS = FINGER_RETRACT_WAIT_MS, 
                 p_GRAB_DELAY_MS = GRAB_DELAY_MS, 
                 p_POST_DRIBBLE_MS = POST_DRIBBLE_MS;
     } params;
