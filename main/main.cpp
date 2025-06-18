@@ -25,7 +25,8 @@ extern "C" void app_main(void)
     dec = new decoder(PhaseA,PhaseB,3);
 
     urosHandler::config cfg = {
-        .mode = urosHandler::config::TRANSPORT_USB
+        .node_name = "dhanush_control",
+        .mode = urosHandler::config::TRANSPORT_USB,
     };
     
     uros = new urosHandler(cfg);

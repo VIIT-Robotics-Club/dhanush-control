@@ -344,7 +344,7 @@ void launchWorker::run(){
         {
         case ball_handler_state_t::LAUNCH_BEGIN: {
             ctx.cfg->armController.position = ARM_REST_POS;
-            ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
+            ctx.cfg->flylController.targetSpeed = ctx.cfg->flyuController.targetSpeed = ctx.target.flyWheelSpeed;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
             // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
         }; break;
@@ -352,7 +352,7 @@ void launchWorker::run(){
 
         case ball_handler_state_t::LAUNCH_PRE_THROW: {
             ctx.cfg->armController.position = ARM_IN_POS;
-            ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = ctx.target.flyWheelSpeed;
+            ctx.cfg->flylController.targetSpeed = ctx.cfg->flyuController.targetSpeed = ctx.target.flyWheelSpeed;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
             // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = ctx.target.flyWheelSpeed;
 
@@ -361,7 +361,7 @@ void launchWorker::run(){
 
         case ball_handler_state_t::LAUNCH_POST_THROW: {
             ctx.cfg->armController.position = ARM_REST_POS;
-            ctx.cfg->flylController.speed = ctx.cfg->flyuController.speed = 0.0f;
+            ctx.cfg->flylController.targetSpeed = ctx.cfg->flyuController.targetSpeed = 0.0f;
             ctx.current->flywheel_angle = ctx.target.flywheel_angle;
             // ctx.current->flyWheelSpeed_L = ctx.current->flyWheelSpeed_U = 0.0f;
 
@@ -376,6 +376,10 @@ void launchWorker::run(){
         ctx.cfg->flylController.update();
         ctx.cfg->flyuController.update();
 
+        ESP_LOGI(TAG, "flywheel SSC status %d %d", 
+            ctx.cfg->flylController.reached(),
+            ctx.cfg->flyuController.reached()
+        );
 
         //check for state transitions 
         switch (ctx.target.launchState)
@@ -413,7 +417,7 @@ void launchWorker::run(){
             break;
         }
 
-        ESP_LOGI(LNCH_WRKR, "current state %d", ctx.target.launchState);
+        ESP_LOGD(LNCH_WRKR, "current state %d", ctx.target.launchState);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     

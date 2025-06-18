@@ -19,7 +19,7 @@ extern pid_config_t defPositionController;
 
 class speedController : public pidController {
 public:
-    float speed = 0.0f, error_tolerance = 0.0f;
+    float targetSpeed = 0.0f, error_tolerance = 0.0f;
 
     speedController(pid_config_t& p_cfg = defSpeedController);
 

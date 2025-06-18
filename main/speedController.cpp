@@ -24,7 +24,7 @@ pid_config_t defPositionController = {
 
 
 speedController::speedController(pid_config_t& cfg) : pidController(cfg) {
-    setpoint = &speed;
+    setpoint = &targetSpeed;
     process = &feedbackSpeed;
 };
 
@@ -47,8 +47,7 @@ float speedController::update(){
     feedbackSpeed = *decoderInput - prevTickCount;
     prevTickCount = *decoderInput;
 
-    float out =  a * speed;
-    // *output = out;
+    float out = pidController::update();
     return out;
 }; 
 
