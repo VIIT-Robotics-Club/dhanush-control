@@ -204,7 +204,7 @@ void ballHandler::hw_task_callback(){
             cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
         }
             
-        // ESP_LOGI(TAG, "arm state %f arm enc %f %d ", current_state.arm_state, cfg.decoder_handle->count[cfg.arm], firstIsr);
+        ESP_LOGI(TAG, "arm state %f arm enc %f", current_state.arm_state, cfg.decoder_handle->count[cfg.arm]);
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -376,7 +376,7 @@ void launchWorker::run(){
         case ball_handler_state_t::LAUNCH_BEGIN: 
             if(ctx.cfg->armController.reached() && 
                 ctx.cfg->flylController.reached() && 
-                ctx.cfg->flylController.reached()) {
+                ctx.cfg->flyuController.reached()) {
                     ctx.target.launchState = ball_handler_state_t::LAUNCH_PRE_THROW;
                 };
 
@@ -388,7 +388,7 @@ void launchWorker::run(){
             if(ctx.cfg->armController.reached() || 
                 ctx.current->armLimiterState[0] || 
                 ctx.current->armLimiterState[1]) {
-                    vTaskDelay(pdMS_TO_TICKS(THROW_WAIT_MS);
+                    vTaskDelay(pdMS_TO_TICKS(THROW_WAIT_MS));
                     ctx.target.launchState = ball_handler_state_t::LAUNCH_POST_THROW;
                 };
 
