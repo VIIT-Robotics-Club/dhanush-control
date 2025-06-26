@@ -155,13 +155,14 @@ void ballHandler::init(){
     ESP_ERROR_CHECK(rclc_executor_add_service(exec, &dribble_service, &dribble_req, &dribble_res, dribble_service_callback));
 };
 
-int64_t p_GRIPPER_OFF_TO_FINGER_MS = GRIPPER_OFF_TO_FINGER_MS, p_FINGER_WAIT_MS = FINGER_WAIT_MS, p_GRAB_DELAY_MS = GRAB_DELAY_MS;
 
 void ballHandler::declareParameters(){
     urosHandler::addParameter_bool("ballHandler_debug", &params.debug, &params);
-    urosHandler::addParameter_int("p_GRIPPER_OFF_TO_FINGER_MS", &p_GRIPPER_OFF_TO_FINGER_MS, nullptr);
-    urosHandler::addParameter_int("p_FINGER_WAIT_MS", &p_FINGER_WAIT_MS, nullptr);
-    urosHandler::addParameter_int("p_GRAB_DELAY_MS", &p_GRAB_DELAY_MS, nullptr);
+    urosHandler::addParameter_int("FINGER_ON_TO_GRIPPER_OFF", &drbWorker.params.p_FINGER_ON_TO_GRIPPER_OFF, &drbWorker.params);
+    urosHandler::addParameter_int("FINGER_RETRACT_WAIT_MS", &drbWorker.params.p_FINGER_RETRACT_WAIT_MS, &drbWorker.params);
+    urosHandler::addParameter_int("GRAB_DELAY_MS", &drbWorker.params.p_GRAB_DELAY_MS, &drbWorker.params);
+    urosHandler::addParameter_int("POST_DRIBBLE_MS", &drbWorker.params.p_POST_DRIBBLE_MS, &drbWorker.params);
+
 };
 
 
@@ -176,9 +177,11 @@ void ballHandler::hw_task_callback(){
 
         if(current_state.armLimiterState[0]) cfg.decoder_handle->reset(cfg.arm);
 
-        // update gpio levels
-        gpio_set_level(cfg.finger, current_state.finger_state);
-        gpio_set_level(cfg.gripper, current_state.gripper_state);
+        // update gpio levels if dribbleWorker is non functional
+        if(!drbWorker.getRunningStatus()){
+            gpio_set_level(cfg.finger, current_state.finger_state);
+            gpio_set_level(cfg.gripper, current_state.gripper_state);
+        }
 
         // calculate speeds from encoder ticks
         cfg.decoder_handle->update();
@@ -205,6 +208,8 @@ void ballHandler::hw_task_callback(){
         }
             
         ESP_LOGI(TAG, "arm state %f arm enc %f", current_state.arm_state, cfg.decoder_handle->count[cfg.arm]);
+        // ESP_LOGI(TAG, "flyWheelU %f flyWheelL %f", cfg.qmd_handler->speeds[cfg.flyWheelUpper], cfg.qmd_handler->speeds[cfg.flyWheelLower]);
+
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -268,6 +273,8 @@ void ballHandler::dribble_service_callback(const void * req, void *res)
 {
     std_srvs__srv__Trigger_Request * req_in = (std_srvs__srv__Trigger_Request*)   req;
     std_srvs__srv__Trigger_Response * res_in = (std_srvs__srv__Trigger_Response*) res;
+
+    (void) req_in;
 
     ESP_LOGI(TAG, "%s service called ", service_name);    
 
@@ -416,6 +423,11 @@ void launchWorker::run(){
 
 
 
+#define GRIPPER_ON 1
+#define GRIPPER_OFF 0
+#define FINGER_ON 1
+#define FINGER_OFF 0
+
 void dribbleWorker::run(){
 
     while (true){
@@ -425,34 +437,36 @@ void dribbleWorker::run(){
         switch (ctx.target.dribbleState)
         {
         case ball_handler_state_t::DRIBBLE_BEGIN: {
-            ctx.cfg->armController.position = ARM_REST_POS;
+            // TODO implement avtive / passive dribble switching
+            // ctx.cfg->armController.position = ARM_REST_POS;
         }; break;
 
 
         case ball_handler_state_t::DRIBBLE_READY: {
-            // TODO impl gripper on
-            ctx.current->gripper_state = true;
+            gpio_set_level(ctx.cfg->gripper, ctx.current->gripper_state = GRIPPER_ON);
             ctx.cfg->armController.position = ARM_OUT_POS;
         }; break;
         
+        // time critical section
         case ball_handler_state_t::DRIBBLE_PRE_THROW: {
-            // TODO impl gripper off
-            ctx.current->finger_state = true;
-            vTaskDelay(pdMS_TO_TICKS(p_GRIPPER_OFF_TO_FINGER_MS));
-            ctx.current->gripper_state = false;
-            vTaskDelay(pdMS_TO_TICKS(p_FINGER_WAIT_MS));
-            ctx.current->finger_state = false;
-            int count = 0;
-            while(count++ < 100 && ! ctx.current->gripper_pir_state){
+
+            gpio_set_level(ctx.cfg->finger, ctx.current->finger_state = FINGER_ON);    // finger on
+            vTaskDelay(pdMS_TO_TICKS(params.p_FINGER_ON_TO_GRIPPER_OFF));              // wait
+            gpio_set_level(ctx.cfg->gripper, ctx.current->gripper_state = GRIPPER_OFF);// gripper_off
+            vTaskDelay(pdMS_TO_TICKS(params.p_FINGER_RETRACT_WAIT_MS));                // wait to retract finger
+            gpio_set_level(ctx.cfg->finger, ctx.current->finger_state = FINGER_OFF);    // finger OFF
+            
+            // wait for ball to excees PIR range in forward trajectory 
+            vTaskDelay(pdMS_TO_TICKS(params.p_POST_DRIBBLE_MS));
+            
+            // wait for pir to be triggered, enter forever wait
+            while(gpio_get_level(ctx.cfg->gripper_pir)){
                 vTaskDelay(pdMS_TO_TICKS(10));
             };
-            // TODO impl gripper on
-            ctx.current->gripper_state = true;
-
-            ctx.cfg->armController.position = ARM_REST_POS;
-            ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_POST_THROW;
-
             
+            gpio_set_level(ctx.cfg->gripper, ctx.current->gripper_state = GRIPPER_ON);
+
+            ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_POST_THROW;
         }; break;
             
         
@@ -469,10 +483,9 @@ void dribbleWorker::run(){
         switch (ctx.target.dribbleState)
         {
         case ball_handler_state_t::DRIBBLE_BEGIN: 
-            if(ctx.cfg->armController.reached() && 
-                ctx.cfg->flylController.reached() && 
-                ctx.cfg->flylController.reached()) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_READY;
-
+        // TODO implement active / passive dribble
+            // if( ctx.cfg->armController.reached() ) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_READY;
+            ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_READY;
         break;
 
 
@@ -485,9 +498,7 @@ void dribbleWorker::run(){
         }; break;
 
         case ball_handler_state_t::DRIBBLE_POST_THROW: {
-            if(ctx.cfg->armController.reached() && 
-                ctx.cfg->flylController.reached() && 
-                ctx.cfg->flylController.reached()) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_COMPLETE;
+            if(ctx.cfg->armController.reached()) ctx.target.dribbleState = ball_handler_state_t::DRIBBLE_COMPLETE;
         }; break;
         
         default:
