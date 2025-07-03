@@ -77,14 +77,14 @@ ballHandler::ballHandler(ball_handler_config_t& p_cfg) : cfg(p_cfg){
         .pin_bit_mask = (uint64_t)(0x01 << cfg.finger | 0x01 << cfg.gripper),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_ENABLE
     };
 
     gpio_config_t gripper_pir_config = {
         .pin_bit_mask = (uint64_t)(0x01 << cfg.gripper_pir),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE
     };
 
 
@@ -207,8 +207,8 @@ void ballHandler::hw_task_callback(){
             cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
         }
             
-        ESP_LOGI(TAG, "arm state %f arm enc %f", current_state.arm_state, cfg.decoder_handle->count[cfg.arm]);
-        // ESP_LOGI(TAG, "flyWheelU %f flyWheelL %f", cfg.qmd_handler->speeds[cfg.flyWheelUpper], cfg.qmd_handler->speeds[cfg.flyWheelLower]);
+        // ESP_LOGI(TAG, "arm state %f arm enc %f", current_state.arm_state, cfg.decoder_handle->count[cfg.arm]);
+        // ESP_LOGI(TAG, "flyWheelU %f flyWheelL %f arm %f", cfg.decoder_handle->count[cfg.flyWheelUpper], cfg.decoder_handle->count[cfg.flyWheelLower], cfg.decoder_handle->count[cfg.arm]);
 
         cfg.qmd_handler->update();
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -247,6 +247,14 @@ void ballHandler::angle_subs_callback(const void* msgin){
     if(def && msg->data <= 1.0f && msg->data >= 0.0f) {
         ball_handler_state_t& state = def->dbgWorker.ctx.target;
         state.flywheel_angle = msg->data;
+
+        // float target_angle = msg->data;
+        // float smoothing_factor = 0.3f; // adjust 0.01f–0.2f depending on how fast you want it to react
+
+        // //Apply smoothing
+        // state.flywheel_angle = (1.0f - smoothing_factor) * state.flywheel_angle + 
+        //                        smoothing_factor * target_angle;       
+
         def->eventInput(DEBUG_EVENT);
     };
 }
@@ -256,7 +264,7 @@ void ballHandler::service_callback(const void * req, void *res)
     dhanush_srv__srv__SpeedAngle_Request * req_in = (dhanush_srv__srv__SpeedAngle_Request*)   req;
     dhanush_srv__srv__SpeedAngle_Response * res_in = (dhanush_srv__srv__SpeedAngle_Response*) res;
 
-    ESP_LOGI(TAG, "%s service called with angle %lf speed %lf", service_name, req_in->angle, req_in->speed);    
+    // ESP_LOGI(TAG, "%s service called with angle %lf speed %lf", service_name, req_in->angle, req_in->speed);    
 
 
     ball_handler_state_t& state = def->lnchWorker.ctx.target;

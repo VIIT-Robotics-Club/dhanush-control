@@ -27,17 +27,17 @@
 #define ARM_REST_POS 1200.0     // arm position of rest in terms of encoder ticks 
 #define ARM_IN_POS 3000.0       // inwards arm position  in terms of encoder ticks 
 #define ARM_OUT_POS -100.0         // outwards arm position  in terms of encoder ticks 
-
+    
 // configuration for dribble
-#define FINGER_ON_TO_GRIPPER_OFF 100    // delay in ms, betweem gripper release and finger active
-#define FINGER_RETRACT_WAIT_MS 100              // delay in ms, duration for finger to be active
-#define GRAB_DELAY_MS 100               // delay in ms, time for ball to reach gripper
-#define POST_DRIBBLE_MS 300             // delay in ms, pir reading are ignored, in ball's forward trajectory
+#define FINGER_ON_TO_GRIPPER_OFF 35    // delay in ms, betweem gripper release and finger active 100
+#define FINGER_RETRACT_WAIT_MS 100 //50              // delay in ms, duration for finger to be active 100
+#define GRAB_DELAY_MS 42               // delay in ms, time for ball to reach gripper 100
+#define POST_DRIBBLE_MS 200             // delay in ms, pir reading are ignored, in ball's forward trajectory 300
 
 #define THROW_WAIT_MS 1000
 // state of the mechanism represented as a object  
 struct ball_handler_state_t {
-    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.7f;
+    float arm_state = 0.0f, flyWheelSpeed_L = 0.0f, flyWheelSpeed_U = 0.0f, flywheel_angle = 0.0f;
     float feedbackFlyWheelSpeed_L = 0.0f, feedbackFlyWheelSpeed_U = 0.0f;
     float flyWheelSpeed = 0.0f;
 

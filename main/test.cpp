@@ -30,8 +30,8 @@ extern "C" void app_main(void){
     while(1){
         dec->update();
         control->update();
-        // ESP_LOGD("SPEED" ,"Speeds : %f",handler->speeds[0]);
-        // handler->speeds[0] = 0.1;
+        ESP_LOGD("SPEED" ,"Speeds : %f",handler->speeds[0]);
+        handler->speeds[0] = 0.1;
         handler->update();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
