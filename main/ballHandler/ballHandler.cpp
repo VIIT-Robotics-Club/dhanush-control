@@ -207,7 +207,7 @@ void ballHandler::hw_task_callback(){
             cfg.qmd_handler->speeds[cfg.arm] = current_state.arm_state;
         }
             
-        // ESP_LOGI(TAG, "arm state %f arm enc %f", current_state.arm_state, cfg.decoder_handle->count[cfg.arm]);
+        ESP_LOGI(TAG, "arm state %f arm enc %f", current_state.arm_state, cfg.decoder_handle->count[cfg.arm]);
         // ESP_LOGI(TAG, "flyWheelU %f flyWheelL %f arm %f", cfg.decoder_handle->count[cfg.flyWheelUpper], cfg.decoder_handle->count[cfg.flyWheelLower], cfg.decoder_handle->count[cfg.arm]);
 
         cfg.qmd_handler->update();
@@ -457,7 +457,7 @@ void dribbleWorker::run(){
         
         // time critical section
         case ball_handler_state_t::DRIBBLE_PRE_THROW: {
-
+            vTaskDelay(pdMS_TO_TICKS(500)); // wait for flywheels to reach speed
             gpio_set_level(ctx.cfg->finger, ctx.current->finger_state = FINGER_ON);    // finger on
             vTaskDelay(pdMS_TO_TICKS(params.p_FINGER_ON_TO_GRIPPER_OFF));              // wait
             gpio_set_level(ctx.cfg->gripper, ctx.current->gripper_state = GRIPPER_OFF);// gripper_off

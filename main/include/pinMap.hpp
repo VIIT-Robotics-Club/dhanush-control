@@ -27,8 +27,8 @@
 #define FLY_UPPER_PHASE_A GPIO_NUM_10
 #define FLY_LOWER_PHASE_A GPIO_NUM_11
 
-#define ARM_Phase_A GPIO_NUM_12
-#define ARM_Phase_B GPIO_NUM_13
+#define ARM_Phase_A GPIO_NUM_13
+#define ARM_Phase_B GPIO_NUM_12
 
 #define GRIPPER_PIR GPIO_NUM_45
 
